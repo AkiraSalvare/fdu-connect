@@ -6,15 +6,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/mythologyli/zju-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
 	"io"
 
 	tun "github.com/cxz66666/sing-tun"
 	"github.com/miekg/dns"
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/internal/zcdns"
-	"github.com/mythologyli/zju-connect/internal/zctcpip"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/zcdns"
+	"github.com/akirasalvare/fdu-connect/internal/zctcpip"
+	"github.com/akirasalvare/fdu-connect/log"
 )
 
 const MTU uint32 = 1400

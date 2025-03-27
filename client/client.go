@@ -3,7 +3,7 @@ package client
 import (
 	"crypto/tls"
 	"errors"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/log"
 	"inet.af/netaddr"
 	"net"
 	"net/http"
@@ -25,7 +25,7 @@ type DomainResource struct {
 }
 
 type EasyConnectClient struct {
-	server            string // Example: rvpn.zju.edu.cn:443. No protocol prefix
+	server            string // Example: stuvpn.fudan.edu.cn:443. No protocol prefix
 	username          string
 	password          string
 	totpSecret        string

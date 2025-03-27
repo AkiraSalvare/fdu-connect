@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/miekg/dns"
-	"github.com/mythologyli/zju-connect/log"
-	"github.com/mythologyli/zju-connect/resolve"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/akirasalvare/fdu-connect/resolve"
 	"net"
 )
 

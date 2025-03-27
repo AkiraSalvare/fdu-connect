@@ -47,7 +47,7 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            mythologyli/zju-connect
+            akirasalvare/fdu-connect
           tags: |
             type=schedule
             type=ref,event=branch

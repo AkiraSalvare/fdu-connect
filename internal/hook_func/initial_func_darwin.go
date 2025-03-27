@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/mythologyli/zju-connect/configs"
+	"github.com/akirasalvare/fdu-connect/configs"
 	"os"
 	"os/exec"
 	"os/user"
@@ -65,7 +65,7 @@ func SetDNSServerWithHook(service, dns string) error {
 func init() {
 	RegisterInitialFunc("clean resolver file", func(ctx context.Context, config configs.Config) error {
 		// discard error
-		_ = os.Remove("/etc/resolver/zju.edu.cn")
+		_ = os.Remove("/etc/resolver/fdu.edu.cn")
 		_ = os.Remove("/etc/resolver/cc98.org")
 		return nil
 	})

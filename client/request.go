@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/pquerna/otp/totp"
 	utls "github.com/refraction-networking/utls"
 	"io"

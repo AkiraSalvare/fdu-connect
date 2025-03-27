@@ -5,12 +5,12 @@ cert_file = ""
 cert_password = ""
 
 # Advanced settings
-server_address = "rvpn.zju.edu.cn"
+server_address = "stuvpn.fudan.edu.cn"
 server_port = 443
 disable_server_config = false
 skip_domain_resource = false
-disable_zju_config = false
-disable_zju_dns = false
+disable_fdu_config = false
+disable_fdu_dns = false
 disable_multi_line = false
 proxy_all = false
 socks_bind = ":1080"
@@ -23,7 +23,7 @@ tun_mode = false
 add_route = false
 dns_ttl = 3600
 disable_keep_alive = false
-zju_dns_server = "10.10.0.21"
+fdu_dns_server = "10.10.0.21"
 secondary_dns_server = "114.114.114.114"
 dns_server_bind = ""
 dns_hijack = false
@@ -37,7 +37,7 @@ port_forwarding = [
 ]
 
 custom_dns = [
-#    { host_name = "appservice.zju.edu.cn", ip = "10.203.8.198"},
+#    { host_name = "appservice.fdu.edu.cn", ip = "10.203.8.198"},
 #    { host_name = "www.cc98.org", ip = "10.10.98.98"}
 ]
 

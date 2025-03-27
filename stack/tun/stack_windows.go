@@ -3,9 +3,9 @@ package tun
 import (
 	"context"
 	"fmt"
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/internal/hook_func"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/log"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
@@ -16,7 +16,7 @@ import (
 )
 
 const guid = "{4F5CDE94-D2A3-4AA5-A4A3-0FE6CB909E83}"
-const interfaceName = "ZJU Connect"
+const interfaceName = "FDU Connect"
 
 type Endpoint struct {
 	easyConnectClient *client.EasyConnectClient
@@ -132,9 +132,9 @@ func NewStack(easyConnectClient *client.EasyConnectClient, dnsHijack bool, ipRes
 	}
 
 	if dnsHijack {
-		command = exec.Command("netsh", "interface", "ipv4", "add", "dnsservers", "ZJU Connect", s.endpoint.ip.String())
+		command = exec.Command("netsh", "interface", "ipv4", "add", "dnsservers", "FDU Connect", s.endpoint.ip.String())
 	} else {
-		command = exec.Command("netsh", "interface", "ipv4", "delete", "dnsservers", "ZJU Connect", "all")
+		command = exec.Command("netsh", "interface", "ipv4", "delete", "dnsservers", "FDU Connect", "all")
 	}
 	err = command.Run()
 	if err != nil {
@@ -143,7 +143,7 @@ func NewStack(easyConnectClient *client.EasyConnectClient, dnsHijack bool, ipRes
 
 	hook_func.RegisterTerminalFunc("Close Tun Device", func(ctx context.Context) error {
 		dev.Close()
-		closeCommand := exec.Command("netsh", "interface", "ipv4", "delete", "dnsservers", "ZJU Connect", "all")
+		closeCommand := exec.Command("netsh", "interface", "ipv4", "delete", "dnsservers", "FDU Connect", "all")
 		return closeCommand.Run()
 	})
 	return s, nil

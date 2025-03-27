@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mythologyli/zju-connect/configs"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/configs"
+	"github.com/akirasalvare/fdu-connect/log"
 	netstat "github.com/shirou/gopsutil/v4/net"
 	"net"
 )

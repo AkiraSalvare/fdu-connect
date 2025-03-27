@@ -1,4 +1,4 @@
-# ZJU Connect
+# FDU Connect
 
 > 🚫 **免责声明**
 >
@@ -16,35 +16,35 @@
 
 #### 使用 GUI 版客户端
 
-+ 如果你是来自 ZJU 的用户：
-  + Windows 用户推荐使用 [ZJU Connect for Windows](https://github.com/mythologyli/zju-connect-for-Windows)。
++ 如果你是来自 FDU 的用户：
+  + Windows 用户推荐使用 [FDU Connect for Windows](https://github.com/akirasalvare/fdu-connect-for-Windows)。
   + Linux/macOS 用户可以尝试使用 [PageChen04](https://github.com/PageChen04) 开发的客户端 [EZ4Connect](https://github.com/PageChen04/EZ4Connect) 或 [kowyo](https://github.com/kowyo) 开发的客户端 [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge)。
-    注意请设置服务器地址为 `rvpn.zju.edu.cn:443`。
-+ 如果你是非 ZJU 的用户：
+    注意请设置服务器地址为 `stuvpn.fudan.edu.cn:443`。
++ 如果你是非 FDU 的用户：
 
   可以尝试使用 [PageChen04](https://github.com/PageChen04) 开发的客户端 [EZ4Connect](https://github.com/PageChen04/EZ4Connect) 或 [kowyo](https://github.com/kowyo) 开发的客户端 [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge)。
 
 #### 直接运行
 
-+ 如果你是来自 ZJU 的用户：
++ 如果你是来自 FDU 的用户：
 
-  1. 在 [Release](https://github.com/mythologyli/zju-connect/releases) 页面下载对应平台的最新版本。
+  1. 在 [Release](https://github.com/akirasalvare/fdu-connect/releases) 页面下载对应平台的最新版本。
 
-  2. 以 macOS 为例，解压出可执行文件 `zju-connect`。
+  2. 以 macOS 为例，解压出可执行文件 `fdu-connect`。
 
-  3. macOS 需要先解除安全限制。命令行运行：`sudo xattr -rd com.apple.quarantine zju-connect`。
+  3. macOS 需要先解除安全限制。命令行运行：`sudo xattr -rd com.apple.quarantine fdu-connect`。
 
-  4. 命令行运行：`./zju-connect -username <上网账户> -password <密码>`。
+  4. 命令行运行：`./fdu-connect -username <上网账户> -password <密码>`。
 
   5. 此时 `1080` 端口为 Socks5 代理，`1081` 端口为 HTTP 代理。如需更改默认端口，请参考参数说明。
 
-+ 如果你是非 ZJU 的用户：
++ 如果你是非 FDU 的用户：
 
   其他步骤与上述相同，运行参数请尝试设置为：
 
-  `./zju-connect -server <服务器地址> -port <服务器端口> -username xxx -password xxx -disable-zju-config -skip-domain-resource -zju-dns-server auto`
+  `./fdu-connect -server <服务器地址> -port <服务器端口> -username xxx -password xxx -disable-fdu-config -skip-domain-resource -fdu-dns-server auto`
 
-  *详情见此[链接](https://github.com/Mythologyli/zju-connect/issues/65#issuecomment-2650185322)*
+  *详情见此[链接](https://github.com/Mythologyli/fdu-connect/issues/65#issuecomment-2650185322)*
 
 #### 作为服务运行
 
@@ -56,7 +56,7 @@
 
 ### ⚠️ 警告
 
-1. 当使用其他开启了 TUN 模式的代理工具，同时配合 zju-connect 作为下游代理时，请注意务必提供正确的分流规则，参考[此 issue](https://github.com/Mythologyli/zju-connect/issues/57)
+1. 当使用其他开启了 TUN 模式的代理工具，同时配合 fdu-connect 作为下游代理时，请注意务必提供正确的分流规则，参考[此 issue](https://github.com/Mythologyli/fdu-connect/issues/57)
 
 ### ⚠️ TUN 模式注意事项
 
@@ -68,7 +68,7 @@
 
 ### 参数说明
 
-+ `server`: SSL VPN 服务端地址，默认为 `rvpn.zju.edu.cn`
++ `server`: SSL VPN 服务端地址，默认为 `stuvpn.fudan.edu.cn`
 
 + `port`: SSL VPN 服务端端口，默认为 `443`
 
@@ -86,9 +86,9 @@
 
 + `skip-domain-resource`: 不使用服务端下发的域名资源分流，一般不需要加此参数
 
-+ `disable-zju-config`: 禁用 ZJU 相关配置，一般不需要加此参数
++ `disable-fdu-config`: 禁用 FDU 相关配置，一般不需要加此参数
 
-+ `disable-zju-dns`: 禁用 ZJU DNS 改用本地 DNS，一般不需要加此参数
++ `disable-fdu-dns`: 禁用 FDU DNS 改用本地 DNS，一般不需要加此参数
 
 + `disable-multi-line`: 禁用自动根据延时选择线路。加此参数后，使用 `server` 参数指定的线路
 
@@ -114,9 +114,9 @@
 
 + `disable-keep-alive`: 禁用定时保活，一般不需要加此参数
 
-+ `zju-dns-server`: ZJU DNS 服务器地址，默认为 `10.10.0.21`。设置为 auto 时使用从服务端获取的 DNS 服务器，如果未能获取则禁用 ZJU DNS
++ `fdu-dns-server`: FDU DNS 服务器地址，默认为 `10.10.0.21`。设置为 auto 时使用从服务端获取的 DNS 服务器，如果未能获取则禁用 FDU DNS
 
-+ `secondary-dns-server`: 当使用 ZJU DNS 服务器无法解析时使用的备用 DNS 服务器，默认为 `114.114.114.114`。留空则使用系统默认 DNS，但在开启 `dns-hijack` 时必须设置
++ `secondary-dns-server`: 当使用 FDU DNS 服务器无法解析时使用的备用 DNS 服务器，默认为 `114.114.114.114`。留空则使用系统默认 DNS，但在开启 `dns-hijack` 时必须设置
 
 + `dns-server-bind`: DNS 服务器监听地址，默认为空即禁用。例如，设置为 `127.0.0.1:53`，则可向 `127.0.0.1:53` 发起 DNS 请求
 
@@ -128,7 +128,7 @@
 
 + `udp-port-forwarding`: UDP 端口转发，格式为 `本地地址-远程地址,本地地址-远程地址,...`，例如 `127.0.0.1:53-10.10.0.21:53`。多个转发用 `,` 分隔
 
-+ `custom-dns`: 指定自定义DNS解析结果，格式为 `域名:IP,域名:IP,...`，例如 `www.cc98.org:10.10.98.98,appservice.zju.edu.cn:10.203.8.198`。多个解析用 `,` 分隔
++ `custom-dns`: 指定自定义DNS解析结果，格式为 `域名:IP,域名:IP,...`，例如 `www.cc98.org:10.10.98.98,appservice.fdu.edu.cn:10.203.8.198`。多个解析用 `,` 分隔
 
 + `custom-proxy-domain`: 指定自定义域名使用RVPN代理，格式为 `域名,域名,...`，例如 `nature.com,science.org`。多个域名用 `,` 分隔
 
@@ -145,8 +145,8 @@
 - [x] SOCKS5 代理服务
 - [x] HTTP 代理服务
 - [x] Shadowsocks 代理服务
-- [x] ZJU DNS 解析
-- [x] ZJU 规则添加
+- [x] FDU DNS 解析
+- [x] FDU 规则添加
 - [x] 支持 IPv6 直连
 - [x] DNS 缓存加速
 - [x] 自动选择线路
@@ -166,8 +166,8 @@
 
 ### 贡献者
 
-<a href="https://github.com/mythologyli/zju-connect/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=mythologyli/zju-connect" />
+<a href="https://github.com/akirasalvare/fdu-connect/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=akirasalvare/fdu-connect" />
 </a>
 
 ### 感谢

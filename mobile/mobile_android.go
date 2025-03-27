@@ -2,9 +2,9 @@ package mobile
 
 import (
 	"crypto/tls"
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/log"
-	"github.com/mythologyli/zju-connect/stack/tun"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/akirasalvare/fdu-connect/stack/tun"
 )
 
 var vpnClient *client.EasyConnectClient

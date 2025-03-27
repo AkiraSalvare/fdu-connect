@@ -3,7 +3,7 @@ package client
 import (
 	"crypto/rand"
 	"errors"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/refraction-networking/utls"
 	"io"
 	"net"

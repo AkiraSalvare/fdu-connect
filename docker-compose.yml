@@ -1,11 +1,11 @@
 version: '3'
 
 services:
-  zju-connect:
+  fdu-connect:
     build:
       context: .
-    image: zju-connect
-    container_name: zju-connect
+    image: fdu-connect
+    container_name: fdu-connect
     restart: unless-stopped
     ports:
       - 1080:1080

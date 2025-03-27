@@ -1,4 +1,4 @@
-# ZJU Connect
+# FDU Connect
 
 > 🚫 **Disclaimer**
 >
@@ -16,34 +16,34 @@
 
 #### Use a GUI client
 
-+ If you are from ZJU:
-  + Windows users are recommended to use [ZJU Connect for Windows](https://github.com/mythologyli/zju-connect-for-Windows)
++ If you are from FDU:
+  + Windows users are recommended to use [FDU Connect for Windows](https://github.com/akirasalvare/fdu-connect-for-Windows)
   + Linux/macOS users can try the [EZ4Connect](https://github.com/PageChen04/EZ4Connect) developed by [PageChen04](https://github.com/PageChen04) or the [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) developed by [kowyo](https://github.com/kowyo)
-    Please set the server address to `rvpn.zju.edu.cn:443`
-+ If you are not from ZJU:
+    Please set the server address to `stuvpn.fudan.edu.cn:443`
++ If you are not from FDU:
   
   You can try the [EZ4Connect](https://github.com/PageChen04/EZ4Connect) developed by [PageChen04](https://github.com/PageChen04) or the [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) developed by [kowyo](https://github.com/kowyo)
 
 #### Run directly
 
-+ If you are from ZJU:
-  1. Download the latest version of the corresponding platform on the [Release](https://github.com/mythologyli/zju-connect/releases) page.
++ If you are from FDU:
+  1. Download the latest version of the corresponding platform on the [Release](https://github.com/akirasalvare/fdu-connect/releases) page.
 
-  2. Take macOS as an example, unzip the executable file `zju-connect`.
+  2. Take macOS as an example, unzip the executable file `fdu-connect`.
 
-  3. macOS needs to remove security restrictions first. Run: `sudo xattr -rd com.apple.quarantine zju-connect`.
+  3. macOS needs to remove security restrictions first. Run: `sudo xattr -rd com.apple.quarantine fdu-connect`.
 
-  4. Run: `./zju-connect -username <username> -password <password>`.
+  4. Run: `./fdu-connect -username <username> -password <password>`.
 
   5. At this time, port `1080` is the Socks5 proxy, and port `1081` is the HTTP proxy. If you need to change the default port, please refer to [Arguments](#Arguments).
 
-+ If you are not from ZJU:
++ If you are not from FDU:
 
   Other steps are the same as above, try setting the running parameters to:
 
-  `./zju-connect -server <server address> -port <server port> -username xxx -password xxx -disable-zju-config -skip-domain-resource -zju-dns-server auto`
+  `./fdu-connect -server <server address> -port <server port> -username xxx -password xxx -disable-fdu-config -skip-domain-resource -fdu-dns-server auto`
 
-  For details, see this [link](https://github.com/Mythologyli/zju-connect/issues/65#issuecomment-2650185322)
+  For details, see this [link](https://github.com/Mythologyli/fdu-connect/issues/65#issuecomment-2650185322)
 
 #### Run as a service
 
@@ -55,7 +55,7 @@
 
 ### ⚠️ Warning
 
-1. When using other proxy tools with TUN mode enabled and zju-connect as a downstream proxy, please be sure to provide the correct network diversion rules, refer to [this issue](https://github.com/Mythologyli/zju-connect/issues/57)
+1. When using other proxy tools with TUN mode enabled and fdu-connect as a downstream proxy, please be sure to provide the correct network diversion rules, refer to [this issue](https://github.com/Mythologyli/fdu-connect/issues/57)
 
 ### ⚠️ TUN mode precautions
 
@@ -67,7 +67,7 @@
 
 ### Arguments
 
-+ `server`: SSL VPN server address, default is `rvpn.zju.edu.cn`
++ `server`: SSL VPN server address, default is `stuvpn.fudan.edu.cn`
 
 + `port`: SSL VPN server port, default is `443`
 
@@ -85,9 +85,9 @@
 
 + `skip-domain-resource`: Do not use the domain resource provided by the server to decide whether to use RVPN, generally no need to add this argument
 
-+ `disable-zju-config`: Disable ZJU related configuration, generally no need to add this argument
++ `disable-fdu-config`: Disable FDU related configuration, generally no need to add this argument
 
-+ `disable-zju-dns`: Disable ZJU DNS and use local DNS, generally no need to add this argument
++ `disable-fdu-dns`: Disable FDU DNS and use local DNS, generally no need to add this argument
 
 + `disable-multi-line`: Disable automatic line selection based on latency. After adding this argument, use the line specified by the `server` parameter
 
@@ -113,9 +113,9 @@
 
 + `disable-keep-alive`: Disable periodic keep-alive, generally no need to add this argument
 
-+ `zju-dns-server`: ZJU DNS server address, default is `10.10.0.21`. Set to `auto` to use the DNS server obtained from the server, and disable ZJU DNS if it fails to obtain
++ `fdu-dns-server`: FDU DNS server address, default is `10.10.0.21`. Set to `auto` to use the DNS server obtained from the server, and disable FDU DNS if it fails to obtain
 
-+ `secondary-dns-server`: Standby DNS server used when ZJU DNS server cannot be used, default is `114.114.114.114`. Leave blank to use the system default DNS, but must be set when `dns-hijack` is enabled
++ `secondary-dns-server`: Standby DNS server used when FDU DNS server cannot be used, default is `114.114.114.114`. Leave blank to use the system default DNS, but must be set when `dns-hijack` is enabled
 
 + `dns-server-bind`: DNS server listening address, default is empty to disable. For example, set to `127.0.0.1:53`, then you can send DNS requests to `127.0.0.1:53`
 
@@ -127,7 +127,7 @@
 
 + `udp-port-forwarding`: UDP port forwarding, format is `local address-remote address,local address-remote address,...`, for example `127.0.0.1:53-10.10.0.21:53`. Multiple forwarding is separated by `,`
 
-+ `custom-dns`: Specify custom DNS resolution results, format is `domain name:IP,domain name:IP,...`, for example `www.cc98.org:10.10.98.98,appservice.zju.edu.cn:10.203.8.198`. Multiple resolutions are separated by `,`
++ `custom-dns`: Specify custom DNS resolution results, format is `domain name:IP,domain name:IP,...`, for example `www.cc98.org:10.10.98.98,appservice.fdu.edu.cn:10.203.8.198`. Multiple resolutions are separated by `,`
 
 + `custom-proxy-domain`: Specify custom domains which use RVPN proxy, format is `domain,domain,...`, for example `nature.com,science.org`. Multiple resolutions are separated by `,`
 
@@ -144,8 +144,8 @@
 - [x] SOCKS5 proxy service
 - [x] HTTP proxy service
 - [x] Shadowsocks proxy service
-- [x] ZJU DNS resolution
-- [x] ZJU rules addition
+- [x] FDU DNS resolution
+- [x] FDU rules addition
 - [x] Support IPv6 direct connection
 - [x] DNS cache acceleration
 - [x] Automatic line selection
@@ -165,8 +165,8 @@
 
 ### Contributors
 
-<a href="https://github.com/mythologyli/zju-connect/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=mythologyli/zju-connect" />
+<a href="https://github.com/akirasalvare/fdu-connect/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=akirasalvare/fdu-connect" />
 </a>
 
 ### Thanks

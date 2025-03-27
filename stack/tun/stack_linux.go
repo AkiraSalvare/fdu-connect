@@ -5,9 +5,9 @@ package tun
 import (
 	"context"
 	tun "github.com/cxz66666/sing-tun"
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/internal/hook_func"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/log"
 	"net"
 	"net/netip"
 	"os/exec"
@@ -67,7 +67,7 @@ func NewStack(easyConnectClient *client.EasyConnectClient, dnsHijack bool, ipRes
 		return nil, err
 	}
 	ipPrefix, _ := netip.ParsePrefix(s.endpoint.ip.String() + "/32")
-	tunName := "ZJU-Connect"
+	tunName := "FDU-Connect"
 	tunName = tun.CalculateInterfaceName(tunName)
 
 	tunOptions := tun.Options{

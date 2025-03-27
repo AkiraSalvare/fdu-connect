@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	"github.com/mythologyli/zju-connect/dial"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/dial"
+	"github.com/akirasalvare/fdu-connect/log"
 	"io"
 	"net"
 	"net/http"

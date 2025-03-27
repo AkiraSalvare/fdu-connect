@@ -7,16 +7,16 @@ import (
 	"crypto"
 	"crypto/tls"
 	"fmt"
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/configs"
-	"github.com/mythologyli/zju-connect/dial"
-	"github.com/mythologyli/zju-connect/internal/hook_func"
-	"github.com/mythologyli/zju-connect/log"
-	"github.com/mythologyli/zju-connect/resolve"
-	"github.com/mythologyli/zju-connect/service"
-	"github.com/mythologyli/zju-connect/stack"
-	"github.com/mythologyli/zju-connect/stack/gvisor"
-	"github.com/mythologyli/zju-connect/stack/tun"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/configs"
+	"github.com/akirasalvare/fdu-connect/dial"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/akirasalvare/fdu-connect/resolve"
+	"github.com/akirasalvare/fdu-connect/service"
+	"github.com/akirasalvare/fdu-connect/stack"
+	"github.com/akirasalvare/fdu-connect/stack/gvisor"
+	"github.com/akirasalvare/fdu-connect/stack/tun"
 	"golang.org/x/crypto/pkcs12"
 	"inet.af/netaddr"
 	"net"
@@ -27,19 +27,19 @@ import (
 
 var conf configs.Config
 
-const zjuConnectVersion = "0.9.0"
+const fduConnectVersion = "0.9.0"
 
 func main() {
 	log.Init()
 
-	log.Println("Start ZJU Connect v" + zjuConnectVersion)
+	log.Println("Start FDU Connect v" + fduConnectVersion)
 	if conf.DebugDump {
 		log.EnableDebug()
 	}
 
 	if errs := hook_func.ExecInitialFunc(context.Background(), conf); errs != nil {
 		for _, err := range errs {
-			log.Printf("Initial ZJU-Connect failed: %s", err)
+			log.Printf("Initial FDU-Connect failed: %s", err)
 		}
 		os.Exit(1)
 	}
@@ -101,16 +101,16 @@ func main() {
 		log.Println("No DNS resource")
 	}
 
-	if !conf.DisableZJUConfig {
+	if !conf.DisableFDUConfig {
 		if domainResources != nil {
-			domainResources["zju.edu.cn"] = client.DomainResource{
+			domainResources["fdu.edu.cn"] = client.DomainResource{
 				PortMin:  1,
 				PortMax:  65535,
 				Protocol: "all",
 			}
 		} else {
 			domainResources = map[string]client.DomainResource{
-				"zju.edu.cn": {
+				"fdu.edu.cn": {
 					PortMin:  1,
 					PortMax:  65535,
 					Protocol: "all",
@@ -174,7 +174,7 @@ func main() {
 				log.Printf("Add route to %s", prefix.String())
 				_ = vpnTUNStack.AddRoute(prefix.String())
 			}
-		} else if !conf.AddRoute && !conf.DisableZJUConfig {
+		} else if !conf.AddRoute && !conf.DisableFDUConfig {
 			log.Println("Add route to 10.0.0.0/8")
 			_ = vpnTUNStack.AddRoute("10.0.0.0/8")
 		}
@@ -187,27 +187,27 @@ func main() {
 		}
 	}
 
-	useZJUDNS := !conf.DisableZJUDNS
-	zjuDNSServer := conf.ZJUDNSServer
-	if useZJUDNS && zjuDNSServer == "auto" {
-		zjuDNSServer, err = vpnClient.DNSServer()
+	useFDUDNS := !conf.DisableFDUDNS
+	fduDNSServer := conf.FDUDNSServer
+	if useFDUDNS && fduDNSServer == "auto" {
+		fduDNSServer, err = vpnClient.DNSServer()
 		if err != nil {
-			useZJUDNS = false
-			zjuDNSServer = "10.10.0.21"
-			log.Println("No DNS server provided by server. Disable ZJU DNS")
+			useFDUDNS = false
+			fduDNSServer = "10.10.0.21"
+			log.Println("No DNS server provided by server. Disable FDU DNS")
 		} else {
-			log.Printf("Use DNS server %s provided by server", zjuDNSServer)
+			log.Printf("Use DNS server %s provided by server", fduDNSServer)
 		}
 	}
 
 	vpnResolver := resolve.NewResolver(
 		vpnStack,
-		zjuDNSServer,
+		fduDNSServer,
 		conf.SecondaryDNSServer,
 		conf.DNSTTL,
 		domainResources,
 		dnsResource,
-		useZJUDNS,
+		useFDUDNS,
 	)
 
 	for _, customDns := range conf.CustomDNSList {
@@ -218,7 +218,7 @@ func main() {
 		vpnResolver.SetPermanentDNS(customDns.HostName, ipAddr)
 		log.Printf("Add custom DNS: %s -> %s\n", customDns.HostName, customDns.IP)
 	}
-	localResolver := service.NewDnsServer(vpnResolver, []string{zjuDNSServer, conf.SecondaryDNSServer})
+	localResolver := service.NewDnsServer(vpnResolver, []string{fduDNSServer, conf.SecondaryDNSServer})
 	vpnStack.SetupResolve(localResolver)
 
 	go vpnStack.Run()
@@ -256,8 +256,8 @@ func main() {
 	}
 
 	if !conf.DisableKeepAlive {
-		if !useZJUDNS {
-			log.Println("Keep alive is disabled because ZJU DNS is disabled")
+		if !useFDUDNS {
+			log.Println("Keep alive is disabled because FDU DNS is disabled")
 		} else {
 			go service.KeepAlive(vpnResolver)
 		}
@@ -266,12 +266,12 @@ func main() {
 	quit := make(chan os.Signal)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	<-quit
-	log.Println("Shutdown ZJU-Connect ......")
+	log.Println("Shutdown FDU-Connect ......")
 	if errs := hook_func.ExecTerminalFunc(context.Background()); errs != nil {
 		for _, err := range errs {
-			log.Printf("Shutdown ZJU-Connect failed: %s", err)
+			log.Printf("Shutdown FDU-Connect failed: %s", err)
 		}
 	} else {
-		log.Println("Shutdown ZJU-Connect success, Bye~")
+		log.Println("Shutdown FDU-Connect success, Bye~")
 	}
 }

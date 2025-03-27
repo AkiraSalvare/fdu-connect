@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/mythologyli/zju-connect/log"
-	"github.com/mythologyli/zju-connect/stack"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/akirasalvare/fdu-connect/stack"
 	"io"
 	"net"
 	"strconv"

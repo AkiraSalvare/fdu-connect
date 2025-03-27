@@ -21,11 +21,11 @@ RUN --mount=target=. \
     --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     # go build -ldflags="-w -s" -o /app/main ./cmd/openwrt-wan-reconnect/*.go
-    go build -tags ${build_tag} -v -o /app/zju-connect -trimpath -ldflags "-s -w -buildid=" .
+    go build -tags ${build_tag} -v -o /app/fdu-connect -trimpath -ldflags "-s -w -buildid=" .
 
 # Import the binary from build stage
 # use root container, but still use /home/nonroot to keep backward support
 FROM gcr.io/distroless/static as prd
 WORKDIR /home/nonroot
-COPY --from=build /app/zju-connect /home/nonroot
-ENTRYPOINT ["/home/nonroot/zju-connect" ,"-config", "/home/nonroot/config.toml"]
+COPY --from=build /app/fdu-connect /home/nonroot
+ENTRYPOINT ["/home/nonroot/fdu-connect" ,"-config", "/home/nonroot/config.toml"]

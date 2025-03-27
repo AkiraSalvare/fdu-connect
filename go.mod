@@ -1,4 +1,4 @@
-module github.com/mythologyli/zju-connect
+module github.com/akirasalvare/fdu-connect
 
 go 1.24.1
 

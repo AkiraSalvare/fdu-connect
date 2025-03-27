@@ -3,7 +3,7 @@ package dial
 import (
 	"context"
 	"errors"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/things-go/go-socks5/statute"
 	"net"
 	"strconv"

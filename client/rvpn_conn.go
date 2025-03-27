@@ -1,7 +1,7 @@
 package client
 
 import (
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/log"
 	"io"
 	"sync"
 )

@@ -11,8 +11,8 @@ type (
 		CertPassword        string
 		DisableServerConfig bool
 		SkipDomainResource  bool
-		DisableZJUConfig    bool
-		DisableZJUDNS       bool
+		DisableFDUConfig    bool
+		DisableFDUDNS       bool
 		DisableMultiLine    bool
 		ProxyAll            bool
 		SocksBind           string
@@ -25,7 +25,7 @@ type (
 		AddRoute            bool
 		DNSTTL              uint64
 		DisableKeepAlive    bool
-		ZJUDNSServer        string
+		FDUDNSServer        string
 		SecondaryDNSServer  string
 		DNSServerBind       string
 		DNSHijack           bool
@@ -59,8 +59,8 @@ type (
 		CertPassword        *string                    `toml:"cert_password"`
 		DisableServerConfig *bool                      `toml:"disable_server_config"`
 		SkipDomainResource  *bool                      `toml:"skip_domain_resource"`
-		DisableZJUConfig    *bool                      `toml:"disable_zju_config"`
-		DisableZJUDNS       *bool                      `toml:"disable_zju_dns"`
+		DisableFDUConfig    *bool                      `toml:"disable_fdu_config"`
+		DisableFDUDNS       *bool                      `toml:"disable_fdu_dns"`
 		DisableMultiLine    *bool                      `toml:"disable_multi_line"`
 		ProxyAll            *bool                      `toml:"proxy_all"`
 		SocksBind           *string                    `toml:"socks_bind"`
@@ -73,7 +73,7 @@ type (
 		AddRoute            *bool                      `toml:"add_route"`
 		DNSTTL              *uint64                    `toml:"dns_ttl"`
 		DisableKeepAlive    *bool                      `toml:"disable_keep_alive"`
-		ZJUDNSServer        *string                    `toml:"zju_dns_server"`
+		FDUDNSServer        *string                    `toml:"fdu_dns_server"`
 		SecondaryDNSServer  *string                    `toml:"secondary_dns_server"`
 		DNSServerBind       *string                    `toml:"dns_server_bind"`
 		DNSHijack           *bool                      `toml:"dns_hijack"`

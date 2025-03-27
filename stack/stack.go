@@ -1,7 +1,7 @@
 package stack
 
 import (
-	"github.com/mythologyli/zju-connect/internal/zcdns"
+	"github.com/akirasalvare/fdu-connect/internal/zcdns"
 	"net"
 )
 

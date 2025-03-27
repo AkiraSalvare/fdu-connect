@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	"github.com/mythologyli/zju-connect/log"
-	"github.com/mythologyli/zju-connect/resolve"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/akirasalvare/fdu-connect/resolve"
 	"time"
 )
 

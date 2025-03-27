@@ -2,10 +2,10 @@ package gvisor
 
 import (
 	"errors"
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/internal/hook_func"
-	"github.com/mythologyli/zju-connect/internal/zcdns"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/internal/zcdns"
+	"github.com/akirasalvare/fdu-connect/log"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"

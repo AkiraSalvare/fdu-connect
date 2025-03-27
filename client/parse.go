@@ -3,7 +3,7 @@ package client
 import (
 	"errors"
 	"github.com/beevik/etree"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/log"
 	"inet.af/netaddr"
 	"net"
 	"strconv"

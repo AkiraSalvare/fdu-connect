@@ -2,10 +2,10 @@ package dial
 
 import (
 	"bytes"
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/log"
-	"github.com/mythologyli/zju-connect/resolve"
-	"github.com/mythologyli/zju-connect/stack"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/akirasalvare/fdu-connect/resolve"
+	"github.com/akirasalvare/fdu-connect/stack"
 	"net"
 	"strconv"
 	"strings"

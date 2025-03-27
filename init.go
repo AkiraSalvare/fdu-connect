@@ -4,11 +4,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/mythologyli/zju-connect/configs"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/BurntSushi/toml"
+	"github.com/akirasalvare/fdu-connect/configs"
 )
 
 func getTOMLVal[T int | uint64 | string | bool](valPointer *T, defaultVal T) T {
@@ -24,10 +25,10 @@ func parseTOMLConfig(configFile string, conf *configs.Config) error {
 
 	_, err := toml.DecodeFile(configFile, &confTOML)
 	if err != nil {
-		return errors.New("ZJU Connect: error parsing the config file")
+		return errors.New("FDU Connect: error parsing the config file")
 	}
 
-	conf.ServerAddress = getTOMLVal(confTOML.ServerAddress, "rvpn.zju.edu.cn")
+	conf.ServerAddress = getTOMLVal(confTOML.ServerAddress, "stuvpn.fudan.edu.cn")
 	conf.ServerPort = getTOMLVal(confTOML.ServerPort, 443)
 	conf.Username = getTOMLVal(confTOML.Username, "")
 	conf.Password = getTOMLVal(confTOML.Password, "")
@@ -36,8 +37,8 @@ func parseTOMLConfig(configFile string, conf *configs.Config) error {
 	conf.CertPassword = getTOMLVal(confTOML.CertPassword, "")
 	conf.DisableServerConfig = getTOMLVal(confTOML.DisableServerConfig, false)
 	conf.SkipDomainResource = getTOMLVal(confTOML.SkipDomainResource, false)
-	conf.DisableZJUConfig = getTOMLVal(confTOML.DisableZJUConfig, false)
-	conf.DisableZJUDNS = getTOMLVal(confTOML.DisableZJUDNS, false)
+	conf.DisableFDUConfig = getTOMLVal(confTOML.DisableFDUConfig, false)
+	conf.DisableFDUDNS = getTOMLVal(confTOML.DisableFDUDNS, false)
 	conf.DisableMultiLine = getTOMLVal(confTOML.DisableMultiLine, false)
 	conf.ProxyAll = getTOMLVal(confTOML.ProxyAll, false)
 	conf.SocksBind = getTOMLVal(confTOML.SocksBind, ":1080")
@@ -51,22 +52,22 @@ func parseTOMLConfig(configFile string, conf *configs.Config) error {
 	conf.DNSTTL = getTOMLVal(confTOML.DNSTTL, uint64(3600))
 	conf.DebugDump = getTOMLVal(confTOML.DebugDump, false)
 	conf.DisableKeepAlive = getTOMLVal(confTOML.DisableKeepAlive, false)
-	conf.ZJUDNSServer = getTOMLVal(confTOML.ZJUDNSServer, "10.10.0.21")
+	conf.FDUDNSServer = getTOMLVal(confTOML.FDUDNSServer, "10.10.0.21")
 	conf.SecondaryDNSServer = getTOMLVal(confTOML.SecondaryDNSServer, "114.114.114.114")
 	conf.DNSServerBind = getTOMLVal(confTOML.DNSServerBind, "")
 	conf.DNSHijack = getTOMLVal(confTOML.DNSHijack, false)
 
 	for _, singlePortForwarding := range confTOML.PortForwarding {
 		if singlePortForwarding.NetworkType == nil {
-			return errors.New("ZJU Connect: network type is not set")
+			return errors.New("FDU Connect: network type is not set")
 		}
 
 		if singlePortForwarding.BindAddress == nil {
-			return errors.New("ZJU Connect: bind address is not set")
+			return errors.New("FDU Connect: bind address is not set")
 		}
 
 		if singlePortForwarding.RemoteAddress == nil {
-			return errors.New("ZJU Connect: remote address is not set")
+			return errors.New("FDU Connect: remote address is not set")
 		}
 
 		conf.PortForwardingList = append(conf.PortForwardingList, configs.SinglePortForwarding{
@@ -78,12 +79,12 @@ func parseTOMLConfig(configFile string, conf *configs.Config) error {
 
 	for _, singleCustomDns := range confTOML.CustomDNS {
 		if singleCustomDns.HostName == nil {
-			return errors.New("ZJU Connect: host name is not set")
+			return errors.New("FDU Connect: host name is not set")
 		}
 
 		if singleCustomDns.IP == nil {
-			fmt.Println("ZJU Connect: IP is not set")
-			return errors.New("ZJU Connect: IP is not set")
+			fmt.Println("FDU Connect: IP is not set")
+			return errors.New("FDU Connect: IP is not set")
 		}
 
 		conf.CustomDNSList = append(conf.CustomDNSList, configs.SingleCustomDNS{
@@ -95,8 +96,8 @@ func parseTOMLConfig(configFile string, conf *configs.Config) error {
 	for _, singleCustomProxyDomain := range confTOML.CustomProxyDomain {
 		var domainRegex = regexp.MustCompile(`^[a-zA-Z\d-]+(\.[a-zA-Z\d-]+)*\.[a-zA-Z]{2,}$`)
 		if !domainRegex.MatchString(singleCustomProxyDomain) {
-			fmt.Printf("ZJU Connect: %s is not a valid domain\n", singleCustomProxyDomain)
-			return errors.New(fmt.Sprintf("ZJU Connect: %s is not a valid domain", singleCustomProxyDomain))
+			fmt.Printf("FDU Connect: %s is not a valid domain\n", singleCustomProxyDomain)
+			return errors.New(fmt.Sprintf("FDU Connect: %s is not a valid domain", singleCustomProxyDomain))
 		}
 		conf.CustomProxyDomain = append(conf.CustomProxyDomain, singleCustomProxyDomain)
 	}
@@ -108,7 +109,7 @@ func init() {
 	configFile, tcpPortForwarding, udpPortForwarding, customDns, customProxyDomain := "", "", "", "", ""
 	showVersion := false
 
-	flag.StringVar(&conf.ServerAddress, "server", "rvpn.zju.edu.cn", "EasyConnect server address")
+	flag.StringVar(&conf.ServerAddress, "server", "stuvpn.fudan.edu.cn", "EasyConnect server address")
 	flag.IntVar(&conf.ServerPort, "port", 443, "EasyConnect port address")
 	flag.StringVar(&conf.Username, "username", "", "Your username")
 	flag.StringVar(&conf.Password, "password", "", "Your password")
@@ -117,8 +118,8 @@ func init() {
 	flag.StringVar(&conf.CertPassword, "cert-password", "", "Client certificate password")
 	flag.BoolVar(&conf.DisableServerConfig, "disable-server-config", false, "Don't parse server config")
 	flag.BoolVar(&conf.SkipDomainResource, "skip-domain-resource", false, "Don't use server domain resource to decide whether to use RVPN.")
-	flag.BoolVar(&conf.DisableZJUConfig, "disable-zju-config", false, "Don't use ZJU config")
-	flag.BoolVar(&conf.DisableZJUDNS, "disable-zju-dns", false, "Use local DNS instead of ZJU DNS")
+	flag.BoolVar(&conf.DisableFDUConfig, "disable-fdu-config", false, "Don't use FDU config")
+	flag.BoolVar(&conf.DisableFDUDNS, "disable-fdu-dns", false, "Use local DNS instead of FDU DNS")
 	flag.BoolVar(&conf.DisableMultiLine, "disable-multi-line", false, "Disable multi line auto select")
 	flag.BoolVar(&conf.ProxyAll, "proxy-all", false, "Proxy all IPv4 traffic")
 	flag.StringVar(&conf.SocksBind, "socks-bind", ":1080", "The address SOCKS5 server listens on (e.g. 127.0.0.1:1080)")
@@ -132,14 +133,14 @@ func init() {
 	flag.Uint64Var(&conf.DNSTTL, "dns-ttl", 3600, "DNS record time to live, unit is second")
 	flag.BoolVar(&conf.DebugDump, "debug-dump", false, "Enable traffic debug dump (only for debug usage)")
 	flag.BoolVar(&conf.DisableKeepAlive, "disable-keep-alive", false, "Disable keep alive")
-	flag.StringVar(&conf.ZJUDNSServer, "zju-dns-server", "10.10.0.21", "ZJU DNS server address. Set to 'auto' to use DNS server provided by server")
+	flag.StringVar(&conf.FDUDNSServer, "fdu-dns-server", "10.10.0.21", "FDU DNS server address. Set to 'auto' to use DNS server provided by server")
 	flag.StringVar(&conf.SecondaryDNSServer, "secondary-dns-server", "114.114.114.114", "Secondary DNS server address. Leave empty to use system default DNS server")
 	flag.StringVar(&conf.DNSServerBind, "dns-server-bind", "", "The address DNS server listens on (e.g. 127.0.0.1:53)")
-	flag.BoolVar(&conf.DNSHijack, "dns-hijack", false, "Hijack all dns query to ZJU Connect")
+	flag.BoolVar(&conf.DNSHijack, "dns-hijack", false, "Hijack all dns query to FDU Connect")
 	flag.StringVar(&conf.TwfID, "twf-id", "", "Login using twfID captured (mostly for debug usage)")
 	flag.StringVar(&tcpPortForwarding, "tcp-port-forwarding", "", "TCP port forwarding (e.g. 0.0.0.0:9898-10.10.98.98:80,127.0.0.1:9899-10.10.98.98:80)")
 	flag.StringVar(&udpPortForwarding, "udp-port-forwarding", "", "UDP port forwarding (e.g. 127.0.0.1:53-10.10.0.21:53)")
-	flag.StringVar(&customDns, "custom-dns", "", "Custom set dns lookup (e.g. www.cc98.org:10.10.98.98,appservice.zju.edu.cn:10.203.8.198)")
+	flag.StringVar(&customDns, "custom-dns", "", "Custom set dns lookup (e.g. www.cc98.org:10.10.98.98,appservice.fdu.edu.cn:10.203.8.198)")
 	flag.StringVar(&customProxyDomain, "custom-proxy-domain", "", "Custom set domains which force use RVPN proxy  (e.g. science.org, nature.com)")
 	flag.StringVar(&configFile, "config", "", "Config file")
 	flag.BoolVar(&showVersion, "version", false, "Show version")
@@ -147,7 +148,7 @@ func init() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Printf("ZJU Connect v%s\n", zjuConnectVersion)
+		fmt.Printf("FDU Connect v%s\n", fduConnectVersion)
 		os.Exit(0)
 	}
 
@@ -163,7 +164,7 @@ func init() {
 			for _, forwardingString := range forwardingStringList {
 				addressStringList := strings.Split(forwardingString, "-")
 				if len(addressStringList) != 2 {
-					fmt.Println("ZJU Connect: wrong tcp port forwarding format")
+					fmt.Println("FDU Connect: wrong tcp port forwarding format")
 					os.Exit(1)
 				}
 
@@ -180,7 +181,7 @@ func init() {
 			for _, forwardingString := range forwardingStringList {
 				addressStringList := strings.Split(forwardingString, "-")
 				if len(addressStringList) != 2 {
-					fmt.Println("ZJU Connect: wrong udp port forwarding format")
+					fmt.Println("FDU Connect: wrong udp port forwarding format")
 					os.Exit(1)
 				}
 
@@ -197,7 +198,7 @@ func init() {
 			for _, dnsString := range dnsList {
 				dnsStringSplit := strings.Split(dnsString, ":")
 				if len(dnsStringSplit) != 2 {
-					fmt.Println("ZJU Connect: wrong custom dns format")
+					fmt.Println("FDU Connect: wrong custom dns format")
 					os.Exit(1)
 				}
 
@@ -213,7 +214,7 @@ func init() {
 			for _, domain := range domainList {
 				var domainRegex = regexp.MustCompile(`^[a-zA-Z\d-]+(\.[a-zA-Z\d-]+)*\.[a-zA-Z]{2,}$`)
 				if !domainRegex.MatchString(domain) {
-					fmt.Printf("ZJU Connect: %s is not a valid domain\n", domain)
+					fmt.Printf("FDU Connect: %s is not a valid domain\n", domain)
 					os.Exit(1)
 				}
 				conf.CustomProxyDomain = append(conf.CustomProxyDomain, domain)
@@ -222,8 +223,8 @@ func init() {
 	}
 
 	if conf.ServerAddress == "" || ((conf.Username == "" || conf.Password == "") && conf.TwfID == "") {
-		fmt.Println("ZJU Connect")
-		fmt.Println("Please see: https://github.com/mythologyli/zju-connect")
+		fmt.Println("FDU Connect")
+		fmt.Println("Please see: https://github.com/akirasalvare/f di-connect")
 		fmt.Printf("\nUsage: %s -username <username> -password <password>\n", os.Args[0])
 		fmt.Println("\nFull usage:")
 		flag.PrintDefaults()

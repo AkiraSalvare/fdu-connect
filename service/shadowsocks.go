@@ -7,8 +7,8 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/mythologyli/zju-connect/dial"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/dial"
+	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/shadowsocks/go-shadowsocks2/core"
 	"github.com/shadowsocks/go-shadowsocks2/socks"
 	"io"

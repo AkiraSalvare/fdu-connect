@@ -66,20 +66,20 @@ jobs:
           echo y | ${CMDLINE_TOOLS_ROOT}/sdkmanager "ndk;${NDK_LTS_VERSION}"
           sudo apt install -y --no-install-recommends g++ libc6-dev
           gomobile init
-          gomobile bind -target=android -o build_assets/zju-connect.aar ./mobile
+          gomobile bind -target=android -o build_assets/fdu-connect.aar ./mobile
 
       - name: Upload artifact
         if: github.event_name != 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: zju-connect-android-aar
+          name: fdu-connect-android-aar
           path: build_assets/*
 
       - name: Create ZIP archive
         if: github.event_name == 'release'
         run: |
           pushd build_assets || exit 1
-          zip -9vr ../zju-connect-android-aar.zip .
+          zip -9vr ../fdu-connect-android-aar.zip .
           popd || exit 1
 
       - name: Upload release binary
@@ -87,4 +87,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh release upload ${{ github.event.release.tag_name }} zju-connect-android-aar.zip
+          gh release upload ${{ github.event.release.tag_name }} fdu-connect-android-aar.zip

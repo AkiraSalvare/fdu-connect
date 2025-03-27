@@ -1,7 +1,7 @@
 ## Docker 运行
 
 ```zsh
-$ docker run -d --name zju-connect -v $PWD/config.toml:/home/nonroot/config.toml -p 1080:1080 -p 1081:1081 --restart unless-stopped mythologyli/zju-connect
+$ docker run -d --name fdu-connect -v $PWD/config.toml:/home/nonroot/config.toml -p 1080:1080 -p 1081:1081 --restart unless-stopped akirasalvare/fdu-connect
 ```
 
 也可以使用 Docker Compose。创建 `docker-compose.yml` 文件，内容如下：
@@ -10,9 +10,9 @@ $ docker run -d --name zju-connect -v $PWD/config.toml:/home/nonroot/config.toml
 version: '3'
 
 services:
-   zju-connect:
-      image: mythologyli/zju-connect
-      container_name: zju-connect
+   fdu-connect:
+      image: akirasalvare/fdu-connect
+      container_name: fdu-connect
       restart: unless-stopped
       ports:
          - 1080:1080
@@ -21,19 +21,19 @@ services:
          - ./config.toml:/home/nonroot/config.toml
 ```
 
-另外，你还可以使用 [configs top-level elements](https://docs.docker.com/compose/compose-file/08-configs/) 将 zju-connect 的配置文件直接写入 docker-compose.yml，如下：
+另外，你还可以使用 [configs top-level elements](https://docs.docker.com/compose/compose-file/08-configs/) 将 fdu-connect 的配置文件直接写入 docker-compose.yml，如下：
 
 ```yaml
 services:
-   zju-connect:
-      container_name: zju-connect
-      image: mythologyli/zju-connect
+   fdu-connect:
+      container_name: fdu-connect
+      image: akirasalvare/fdu-connect
       restart: unless-stopped
       ports: [1080:1080, 1081:1081]
-      configs: [{ source: zju-connect-config, target: /home/nonroot/config.toml }]
+      configs: [{ source: fdu-connect-config, target: /home/nonroot/config.toml }]
 
 configs:
-   zju-connect-config:
+   fdu-connect-config:
       content: |
          username = ""
          password = ""

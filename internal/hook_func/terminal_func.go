@@ -2,7 +2,7 @@ package hook_func
 
 import (
 	"context"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/log"
 )
 
 type TerminalFunc func(ctx context.Context) error

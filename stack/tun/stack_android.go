@@ -1,8 +1,8 @@
 package tun
 
 import (
-	"github.com/mythologyli/zju-connect/client"
-	"github.com/mythologyli/zju-connect/log"
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/log"
 	"golang.org/x/net/ipv4"
 	"io"
 	"net"
