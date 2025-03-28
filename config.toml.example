@@ -23,8 +23,8 @@ tun_mode = false
 add_route = false
 dns_ttl = 3600
 disable_keep_alive = false
-fdu_dns_server = "10.10.0.21"
-secondary_dns_server = "114.114.114.114"
+fdu_dns_server = "202.120.224.26"
+secondary_dns_server = "223.5.5.5"
 dns_server_bind = ""
 dns_hijack = false
 debug_dump = false
@@ -33,12 +33,12 @@ debug_dump = false
 port_forwarding = [
 #    { network_type = "tcp", bind_address = "127.0.0.1:9898", remote_address = "10.10.98.98:80" },
 #    { network_type = "tcp", bind_address = "127.0.0.1:9899", remote_address = "10.10.98.98:80" },
-#    { network_type = "udp", bind_address = "127.0.0.1:1053", remote_address = "10.10.0.21:53" }
+#    { network_type = "udp", bind_address = "127.0.0.1:1053", remote_address = "10.108.68.200:53" }
 ]
 
 custom_dns = [
-#    { host_name = "appservice.fdu.edu.cn", ip = "10.203.8.198"},
-#    { host_name = "www.cc98.org", ip = "10.10.98.98"}
+#    { host_name = "zb.fudan.edu.cn", ip = "10.108.68.200"},
+#    { host_name = "mirrors.fducslg.com", ip = "10.176.52.2"}
 ]
 
 custom_proxy_domain = [

@@ -182,7 +182,7 @@ func main() {
 		fduDNSServer, err = vpnClient.DNSServer()
 		if err != nil {
 			useFDUDNS = false
-			fduDNSServer = "10.10.0.21"
+			fduDNSServer = "202.120.224.26"
 			log.Println("No DNS server provided by server. Disable FDU DNS")
 		} else {
 			log.Printf("Use DNS server %s provided by server", fduDNSServer)
