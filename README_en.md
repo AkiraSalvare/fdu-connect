@@ -8,23 +8,11 @@
 
 [中文](README.md) | English
 
-**This program is based on [EasierConnect](https://github.com/lyc8503/EasierConnect) (now Archived), thanks to the original author [lyc8503](https://github.com/lyc8503).**
+**This program is modified on [ZJU Connect](https://github.com/Mythologyli/zju-connect), thanks to the original author [Mythologyli](https://github.com/Mythologyli) and the contributors of the original project.**
 
 **QQ group: 1037726410**, welcome to join the discussion.
 
 ### Usage
-
-#### Use a GUI client
-
-+ If you are from FDU:
-  + Windows users are recommended to use [FDU Connect for Windows](https://github.com/akirasalvare/fdu-connect-for-Windows)
-  + Linux/macOS users can try the [EZ4Connect](https://github.com/PageChen04/EZ4Connect) developed by [PageChen04](https://github.com/PageChen04) or the [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) developed by [kowyo](https://github.com/kowyo)
-    Please set the server address to `stuvpn.fudan.edu.cn:443`
-+ If you are not from FDU:
-  
-  You can try the [EZ4Connect](https://github.com/PageChen04/EZ4Connect) developed by [PageChen04](https://github.com/PageChen04) or the [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) developed by [kowyo](https://github.com/kowyo)
-
-#### Run directly
 
 + If you are from FDU:
   1. Download the latest version of the corresponding platform on the [Release](https://github.com/akirasalvare/fdu-connect/releases) page.
@@ -39,11 +27,7 @@
 
 + If you are not from FDU:
 
-  Other steps are the same as above, try setting the running parameters to:
-
-  `./fdu-connect -server <server address> -port <server port> -username xxx -password xxx -disable-fdu-config -skip-domain-resource -fdu-dns-server auto`
-
-  For details, see this [link](https://github.com/Mythologyli/fdu-connect/issues/65#issuecomment-2650185322)
+  We suppose you to try the original [ZJU Connect](https://github.com/Mythologyli/zju-connect)
 
 #### Run as a service
 
@@ -55,7 +39,7 @@
 
 ### ⚠️ Warning
 
-1. When using other proxy tools with TUN mode enabled and fdu-connect as a downstream proxy, please be sure to provide the correct network diversion rules, refer to [this issue](https://github.com/Mythologyli/fdu-connect/issues/57)
+1. When using other proxy tools with TUN mode enabled and fdu-connect as a downstream proxy, please be sure to provide the correct network diversion rules, refer to [this issue](https://github.com/Mythologyli/zju-connect/issues/57)
 
 ### ⚠️ TUN mode precautions
 
@@ -127,7 +111,7 @@
 
 + `udp-port-forwarding`: UDP port forwarding, format is `local address-remote address,local address-remote address,...`, for example `127.0.0.1:53-202.120.224.26:53`. Multiple forwarding is separated by `,`
 
-+ `custom-dns`: Specify custom DNS resolution results, format is `domain name:IP,domain name:IP,...`, for example `www.cc98.org:10.10.98.98,appservice.fdu.edu.cn:10.203.8.198`. Multiple resolutions are separated by `,`
++ `custom-dns`: Specify custom DNS resolution results, format is `domain name:IP,domain name:IP,...`, for example `zb.fudan.edu.cn:10.108.68.200,mirrors.fducslg.com:10.176.52.2`. Multiple resolutions are separated by `,`
 
 + `custom-proxy-domain`: Specify custom domains which use RVPN proxy, format is `domain,domain,...`, for example `nature.com,science.org`. Multiple resolutions are separated by `,`
 
@@ -135,41 +119,9 @@
 
 + `config`: Specify the configuration file, the content refers to `config.toml.example`. Other parameters are ignored when the configuration file is enabled
 
-### Schedule
-
-#### Completed
-
-- [x] Proxy TCP traffic
-- [x] Proxy UDP traffic
-- [x] SOCKS5 proxy service
-- [x] HTTP proxy service
-- [x] Shadowsocks proxy service
-- [x] FDU DNS resolution
-- [x] FDU rules addition
-- [x] Support IPv6 direct connection
-- [x] DNS cache acceleration
-- [x] Automatic line selection
-- [x] TCP port forwarding
-- [x] UDP port forwarding
-- [x] Start through configuration file
-- [x] Periodic keep-alive
-- [x] TUN mode
-- [x] Automatical DNS hijack
-- [x] SMS verification
-- [x] TOTP verification
-- [x] Certificate verification
-
-#### To Do
-
-- [ ] Correct implementation of `proxy-all` under TUN mode (#64)
-
-### Contributors
-
-<a href="https://github.com/akirasalvare/fdu-connect/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=akirasalvare/fdu-connect" />
-</a>
-
 ### Thanks
+
++ [ZJU Connect](https://github.com/Mythologyli/zju-connect)
 
 + [EasierConnect](https://github.com/lyc8503/EasierConnect)
 

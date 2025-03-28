@@ -43,7 +43,7 @@ For macOS, system services are based on `launchd`, which is different from `syst
 
 3. Remove security restrictions: `sudo xattr -rd com.apple.quarantine fdu-connect`.
 
-4. Create `plist` file referring to [com.fdu.connect.plist](com.fdu.connect.plist). Since `plist` is a binary file, it's recommended to edit using PlistEdict Pro. Here are some key configurations:
+4. Create `plist` file referring to [com.fdu.connect.plist](com.fdu.connect.plist). Since `plist` is a binary file, it's recommended to edit using PlistEdit Pro. Here are some key configurations:
 
     + `UserName`: The default user for running fdu-connect in the background is `root`, it's recommended to change to your own username.
     + `ProgramArguments`: fdu-connect running parameters.
@@ -143,4 +143,4 @@ For OpenWrt system, you can use procd init script to make fdu-connect start auto
 
     1. The internal IP range used by FDU campus network is `10.0.0.0/8`, you may need to remove this IP range from the direct connection list/LAN list of the proxy plugin and add it to the proxy list.
 
-    2. Please make sure that the RVPN server used is directly connected to OpenWrt. If `stuvpn.fudan.edu.cn` is not configured as a direct connection, this domain name may match the routing rules and other `fdu.edu.cn` traffic will be sent to the fdu-connect proxy, which will cause network anomalies.
+    2. Please make sure that the RVPN server used is directly connected to OpenWrt. If `stuvpn.fudan.edu.cn` is not configured as a direct connection, this domain name may match the routing rules and other `fudan.edu.cn` traffic will be sent to the fdu-connect proxy, which will cause network anomalies.

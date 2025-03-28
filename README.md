@@ -8,25 +8,11 @@
 
 中文 | [English](README_en.md)
 
-**本程序基于 [EasierConnect](https://github.com/lyc8503/EasierConnect)（现已停止维护）完成，感谢原作者 [lyc8503](https://github.com/lyc8503)。**
-
-**QQ 交流群：1037726410**，欢迎使用者加入交流。
+**本程序基于 [ZJU Connect](https://github.com/Mythologyli/zju-connect)修改，感谢原作者 [Mythologyli](https://github.com/Mythologyli)以及原项目的贡献者。**
 
 ### 使用方法
 
-#### 使用 GUI 版客户端
-
-+ 如果你是来自 FDU 的用户：
-  + Windows 用户推荐使用 [FDU Connect for Windows](https://github.com/akirasalvare/fdu-connect-for-Windows)。
-  + Linux/macOS 用户可以尝试使用 [PageChen04](https://github.com/PageChen04) 开发的客户端 [EZ4Connect](https://github.com/PageChen04/EZ4Connect) 或 [kowyo](https://github.com/kowyo) 开发的客户端 [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge)。
-    注意请设置服务器地址为 `stuvpn.fudan.edu.cn:443`。
-+ 如果你是非 FDU 的用户：
-
-  可以尝试使用 [PageChen04](https://github.com/PageChen04) 开发的客户端 [EZ4Connect](https://github.com/PageChen04/EZ4Connect) 或 [kowyo](https://github.com/kowyo) 开发的客户端 [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge)。
-
-#### 直接运行
-
-+ 如果你是来自 FDU 的用户：
++ 如果你是来自复旦大学的用户：
 
   1. 在 [Release](https://github.com/akirasalvare/fdu-connect/releases) 页面下载对应平台的最新版本。
 
@@ -38,13 +24,9 @@
 
   5. 此时 `1080` 端口为 Socks5 代理，`1081` 端口为 HTTP 代理。如需更改默认端口，请参考参数说明。
 
-+ 如果你是非 FDU 的用户：
++ 如果你是非复旦大学的用户：
 
-  其他步骤与上述相同，运行参数请尝试设置为：
-
-  `./fdu-connect -server <服务器地址> -port <服务器端口> -username xxx -password xxx -disable-fdu-config -skip-domain-resource -fdu-dns-server auto`
-
-  *详情见此[链接](https://github.com/Mythologyli/fdu-connect/issues/65#issuecomment-2650185322)*
+建议使用原版 [ZJU Connect](https://github.com/Mythologyli/zju-connect)
 
 #### 作为服务运行
 
@@ -56,7 +38,7 @@
 
 ### ⚠️ 警告
 
-1. 当使用其他开启了 TUN 模式的代理工具，同时配合 fdu-connect 作为下游代理时，请注意务必提供正确的分流规则，参考[此 issue](https://github.com/Mythologyli/fdu-connect/issues/57)
+1. 当使用其他开启了 TUN 模式的代理工具，同时配合 fdu-connect 作为下游代理时，请注意务必提供正确的分流规则，参考[此 issue](https://github.com/Mythologyli/zju-connect/issues/57)
 
 ### ⚠️ TUN 模式注意事项
 
@@ -128,7 +110,7 @@
 
 + `udp-port-forwarding`: UDP 端口转发，格式为 `本地地址-远程地址,本地地址-远程地址,...`，例如 `127.0.0.1:53-202.120.224.26:53`。多个转发用 `,` 分隔
 
-+ `custom-dns`: 指定自定义DNS解析结果，格式为 `域名:IP,域名:IP,...`，例如 `www.cc98.org:10.10.98.98,appservice.fdu.edu.cn:10.203.8.198`。多个解析用 `,` 分隔
++ `custom-dns`: 指定自定义DNS解析结果，格式为 `域名:IP,域名:IP,...`，例如 `zb.fudan.edu.cn:10.108.68.200,mirrors.fducslg.com:10.176.52.2`。多个解析用 `,` 分隔
 
 + `custom-proxy-domain`: 指定自定义域名使用RVPN代理，格式为 `域名,域名,...`，例如 `nature.com,science.org`。多个域名用 `,` 分隔
 
@@ -136,41 +118,9 @@
 
 + `config`: 指定配置文件，内容参考 `config.toml.example`。启用配置文件时其他参数无效
 
-### 计划表
-
-#### 已完成
-
-- [x] 代理 TCP 流量
-- [x] 代理 UDP 流量
-- [x] SOCKS5 代理服务
-- [x] HTTP 代理服务
-- [x] Shadowsocks 代理服务
-- [x] FDU DNS 解析
-- [x] FDU 规则添加
-- [x] 支持 IPv6 直连
-- [x] DNS 缓存加速
-- [x] 自动选择线路
-- [x] TCP 端口转发功能
-- [x] UDP 端口转发功能
-- [x] 通过配置文件启动
-- [x] 定时保活
-- [x] TUN 模式
-- [x] 自动劫持 DNS
-- [x] 短信验证
-- [x] TOTP 验证
-- [x] 证书验证
-
-#### To Do
-
-- [ ] TUN 模式下 `proxy-all` 的正确实现 (#64)
-
-### 贡献者
-
-<a href="https://github.com/akirasalvare/fdu-connect/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=akirasalvare/fdu-connect" />
-</a>
-
 ### 感谢
+
++ [ZJU Connect](https://github.com/Mythologyli/zju-connect)
 
 + [EasierConnect](https://github.com/lyc8503/EasierConnect)
 

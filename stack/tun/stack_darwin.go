@@ -3,18 +3,19 @@ package tun
 import (
 	"context"
 	"fmt"
-	tun "github.com/cxz66666/sing-tun"
-	"github.com/akirasalvare/fdu-connect/client"
-	"github.com/akirasalvare/fdu-connect/internal/hook_func"
-	"github.com/akirasalvare/fdu-connect/log"
-	"golang.org/x/sys/unix"
-	"inet.af/netaddr"
 	"net"
 	"net/netip"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
+
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/log"
+	tun "github.com/cxz66666/sing-tun"
+	"golang.org/x/sys/unix"
+	"inet.af/netaddr"
 )
 
 type Endpoint struct {
@@ -129,7 +130,7 @@ func NewStack(easyConnectClient *client.EasyConnectClient, dnsHijack bool, ipRes
 	log.Printf("Interface Name: %s, index %d\n", tunName, netIfce.Index)
 
 	// We need this dialer to bind to device otherwise packets will not be sent via TUN
-	// Doesn't work on macOS. See  https://github.com/Mythologyli/fdu-connect/pull/44#issuecomment-1784050022
+	// Doesn't work on macOS. See  https://github.com/Mythologyli/zju-connect/pull/44#issuecomment-1784050022
 	s.endpoint.tcpDialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   s.endpoint.ip,
@@ -144,7 +145,7 @@ func NewStack(easyConnectClient *client.EasyConnectClient, dnsHijack bool, ipRes
 		},
 	}
 
-	// Doesn't work on macOS. See  https://github.com/Mythologyli/fdu-connect/pull/44#issuecomment-1784050022
+	// Doesn't work on macOS. See  https://github.com/Mythologyli/zju-connect/pull/44#issuecomment-1784050022
 	s.endpoint.udpDialer = &net.Dialer{
 		LocalAddr: &net.UDPAddr{
 			IP:   s.endpoint.ip,

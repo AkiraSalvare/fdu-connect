@@ -6,7 +6,7 @@
 
 对于 Ubuntu/Debian、RHEL 系、Arch 等基于 Systemd 的 Linux 发行版，除按照上述方法运行外，亦可通过以下步骤将 FDU Connect 安装为系统服务，实现自动重连功能：
 
-1. 在 [Release](https://github.com/Mythologyli/FDU-Connect/releases) 页面下载对应平台的最新版本，将可执行文件放置于 `/opt` 目录并赋予可执行权限。
+1. 在 [Release](https://github.com/akirasalvare/fdu-connect/releases) 页面下载对应平台的最新版本，将可执行文件放置于 `/opt` 目录并赋予可执行权限。
 
 2. 在 `/etc` 下创建 `fdu-connect` 目录，并在目录中创建配置文件`config.toml`，内容参照仓库中的 `config.toml.example`。
 
@@ -43,7 +43,7 @@
 
 3. 解除安全限制：`sudo xattr -rd com.apple.quarantine fdu-connect`。
 
-4. 参考 [com.fdu.connect.plist](com.fdu.connect.plist) 建立 macOS 系统服务配置文件，plist 文件为二进制文件，建议使用 PlistEdict Pro 编辑，其中关键配置参数如下：
+4. 参考 [com.fdu.connect.plist](com.fdu.connect.plist) 建立 macOS 系统服务配置文件，plist 文件为二进制文件，建议使用 PlistEdit Pro 编辑，其中关键配置参数如下：
 
     + `UserName`: 后台运行 fdu-connect 的的用户默认为 `root`，建议修改为你自己的用户名
     + `ProgramArguments`: fdu-connect 运行参数
@@ -79,7 +79,7 @@
 
 对于 OpenWrt 系统，可通过 procd init 脚本让 fdu-connect 开机自启、后台运行，在代理插件中添加对应本机节点和分流规则即可正常使用。
 
-1. 从 [Release](https://github.com/Mythologyli/FDU-Connect/releases) 页面下载对应平台的最新 linux 版本，将可执行文件保存为 `/usr/bin/fdu-connect` 并赋予可执行权限。
+1. 从 [Release](https://github.com/akirasalvare/fdu-connect/releases) 页面下载对应平台的最新 linux 版本，将可执行文件保存为 `/usr/bin/fdu-connect` 并赋予可执行权限。
 
 2. 参照仓库中的 `config.toml.example`，创建配置文件 `/etc/back2fdu.toml`，配置好 socks/http 代理端口，因通过代理插件实现分流，建议将 fdu-connect 的配置项 `proxy_all` 设置为 `true`。
 
@@ -143,4 +143,4 @@
 
     1. FDU 校园网使用的内网 IP 段是 `10.0.0.0/8`，可能需要将此 IP 段从代理插件的直连列表/局域网列表中移除并添加至代理列表。
 
-    2. 请确保使用的 RVPN 服务器与 OpenWrt 直连。若未将 `stuvpn.fudan.edu.cn` 配置为直连，此域名可能匹配分流规则与其他 `fdu.edu.cn` 流量一样被发往 fdu-connect 代理，这会造成网络异常。
+    2. 请确保使用的 RVPN 服务器与 OpenWrt 直连。若未将 `stuvpn.fudan.edu.cn` 配置为直连，此域名可能匹配分流规则与其他 `fudan.edu.cn` 流量一样被发往 fdu-connect 代理，这会造成网络异常。
