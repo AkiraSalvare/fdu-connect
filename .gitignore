@@ -23,3 +23,6 @@ go.work
 
 # Config file
 config.toml
+
+# macOS rubbish
+.DS_Store
