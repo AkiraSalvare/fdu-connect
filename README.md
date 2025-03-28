@@ -8,7 +8,7 @@
 
 中文 | [English](README_en.md)
 
-**本程序基于 [ZJU Connect](https://github.com/Mythologyli/zju-connect)修改，感谢原作者 [Mythologyli](https://github.com/Mythologyli)以及原项目的贡献者。**
+**本程序基于 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 修改，感谢原作者 [Mythologyli](https://github.com/Mythologyli) 以及原项目的贡献者。**
 
 ### 使用方法
 
@@ -26,7 +26,7 @@
 
 + 如果你是非复旦大学的用户：
 
-建议使用原版 [ZJU Connect](https://github.com/Mythologyli/zju-connect)
+  建议使用原版 [ZJU Connect](https://github.com/Mythologyli/zju-connect)
 
 #### 作为服务运行
 
