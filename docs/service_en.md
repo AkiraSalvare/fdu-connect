@@ -2,9 +2,24 @@
 
 **Please first run directly to ensure that there is no error before creating a service, so as to avoid repeated login failures resulting in temporary IP ban!**
 
-### Linux
+### Arch Linux
+For Arch Linux systems, it is recommended to install fdu-connect using the AUR package manager:
 
-For Linux distributions based on Systemd such as Ubuntu/Debian, RHEL, Arch, etc., in addition to running as described above, FDU Connect can also be installed as a system service through the following steps to achieve automatic reconnection function:
+```bash
+$ [yay|paru] -S fdu-connect-git
+```
+
+After installation, a service `fdu-connect.service` and an example configuration file `/usr/share/doc/fdu-connect/config.toml.example` will be created.
+
+Copy the example configuration file to `/etc/fdu-connect/config.toml` and modify the configuration as needed. Execute the following command to enable the service and set it to start automatically:
+
+```bash
+$ sudo systemctl enable --now fdu-connect.service
+```
+
+### Other Linux
+
+For Linux distributions based on Systemd such as Ubuntu/Debian, RHEL, etc., in addition to running as described above, FDU Connect can also be installed as a system service through the following steps to achieve automatic reconnection function:
 
 1. Download the latest version of the corresponding platform on the [Release](https://github.com/akirasalvare/fdu-connect/releases) page, place the executable file in the `/opt` directory and grant executable permissions.
 

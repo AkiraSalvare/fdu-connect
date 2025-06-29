@@ -15,6 +15,7 @@
 + 如果你是来自复旦大学的用户：
 
   1. 在 [Release](https://github.com/akirasalvare/fdu-connect/releases) 页面下载对应平台的最新版本。
+      - Arch Linux 用户可直接安装 AUR 包 [fdu-connect-git](https://aur.archlinux.org/packages/fdu-connect-git): `[yay|paru] -S fdu-connect-git`
 
   2. 以 macOS 为例，解压出可执行文件 `fdu-connect`。
 

@@ -16,6 +16,7 @@
 
 + If you are from FDU:
   1. Download the latest version of the corresponding platform on the [Release](https://github.com/akirasalvare/fdu-connect/releases) page.
+     - Arch Linux users can directly install the AUR package [fdu-connect-git](https://aur.archlinux.org/packages/fdu-connect-git): `[yay|paru] -S fdu-connect-git`
 
   2. Take macOS as an example, unzip the executable file `fdu-connect`.
 

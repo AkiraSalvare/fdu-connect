@@ -2,9 +2,25 @@
 
 **请先直接运行，确保无误后再创建服务，避免反复登录失败导致 IP 被临时封禁！**
 
-### Linux
+### Arch Linux
 
-对于 Ubuntu/Debian、RHEL 系、Arch 等基于 Systemd 的 Linux 发行版，除按照上述方法运行外，亦可通过以下步骤将 FDU Connect 安装为系统服务，实现自动重连功能：
+对于 Arch Linux 系统，建议使用 AUR 包管理器安装 fdu-connect：
+
+```bash
+$ [yay|paru] -S fdu-connect-git
+```
+
+安装完成后，将会创建服务 `fdu-connect.service` 和示例配置文件 `/usr/share/doc/fdu-connect/config.toml.example`。
+
+将示例配置文件复制到 `/etc/fdu-connect/config.toml` 并根据需要修改配置。执行以下命令启用服务并设置自启：
+
+```bash
+$ sudo systemctl enable --now fdu-connect.service
+```
+
+### 其他 Linux
+
+对于 Ubuntu/Debian、RHEL 系等基于 Systemd 的 Linux 发行版，除按照上述方法运行外，亦可通过以下步骤将 FDU Connect 安装为系统服务，实现自动重连功能：
 
 1. 在 [Release](https://github.com/akirasalvare/fdu-connect/releases) 页面下载对应平台的最新版本，将可执行文件放置于 `/opt` 目录并赋予可执行权限。
 
