@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/akirasalvare/fdu-connect/configs"
 	"os"
 	"os/exec"
 	"os/user"
 	"strings"
+
+	"github.com/akirasalvare/fdu-connect/configs"
 )
 
 // get all services and skip element contains "*"
@@ -65,8 +66,8 @@ func SetDNSServerWithHook(service, dns string) error {
 func init() {
 	RegisterInitialFunc("clean resolver file", func(ctx context.Context, config configs.Config) error {
 		// discard error
-		_ = os.Remove("/etc/resolver/fdu.edu.cn")
-		_ = os.Remove("/etc/resolver/cc98.org")
+		_ = os.Remove("/etc/resolver/fudan.edu.cn")
+		_ = os.Remove("/etc/resolver/mirrors.fducslg.com")
 		return nil
 	})
 	RegisterInitialFunc("check tun mode cap", func(ctx context.Context, config configs.Config) error {

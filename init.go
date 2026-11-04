@@ -140,7 +140,7 @@ func init() {
 	flag.StringVar(&conf.TwfID, "twf-id", "", "Login using twfID captured (mostly for debug usage)")
 	flag.StringVar(&tcpPortForwarding, "tcp-port-forwarding", "", "TCP port forwarding (e.g. 0.0.0.0:9898-10.10.98.98:80,127.0.0.1:9899-10.10.98.98:80)")
 	flag.StringVar(&udpPortForwarding, "udp-port-forwarding", "", "UDP port forwarding (e.g. 127.0.0.1:53-202.120.224.26:53)")
-	flag.StringVar(&customDns, "custom-dns", "", "Custom set dns lookup (e.g. www.cc98.org:10.10.98.98,appservice.fdu.edu.cn:10.203.8.198)")
+	flag.StringVar(&customDns, "custom-dns", "", "Custom set dns lookup (e.g. zb.fudan.edu.cn:10.108.68.200,mirrors.fducslg.com:10.176.52.2)")
 	flag.StringVar(&customProxyDomain, "custom-proxy-domain", "", "Custom set domains which force use RVPN proxy  (e.g. science.org, nature.com)")
 	flag.StringVar(&configFile, "config", "", "Config file")
 	flag.BoolVar(&showVersion, "version", false, "Show version")
@@ -224,7 +224,7 @@ func init() {
 
 	if conf.ServerAddress == "" || ((conf.Username == "" || conf.Password == "") && conf.TwfID == "") {
 		fmt.Println("FDU Connect")
-		fmt.Println("Please see: https://github.com/akirasalvare/f di-connect")
+		fmt.Println("Please see: https://github.com/akirasalvare/fdu-connect")
 		fmt.Printf("\nUsage: %s -username <username> -password <password>\n", os.Args[0])
 		fmt.Println("\nFull usage:")
 		flag.PrintDefaults()

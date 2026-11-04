@@ -104,14 +104,14 @@ func main() {
 
 	if !conf.DisableFDUConfig {
 		if domainResources != nil {
-			domainResources["fdu.edu.cn"] = client.DomainResource{
+			domainResources["fudan.edu.cn"] = client.DomainResource{
 				PortMin:  1,
 				PortMax:  65535,
 				Protocol: "all",
 			}
 		} else {
 			domainResources = map[string]client.DomainResource{
-				"fdu.edu.cn": {
+				"fudan.edu.cn": {
 					PortMin:  1,
 					PortMax:  65535,
 					Protocol: "all",
