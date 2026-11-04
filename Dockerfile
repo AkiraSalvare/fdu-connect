@@ -1,10 +1,11 @@
 # get modules, if they don't change the cache can be used for faster builds
-FROM golang:1.24 AS base
+FROM golang:1.25 AS base
 ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
-ARG build_tag=full
+ARG VERSION=dev
+ARG COMMIT_ID
 # RUN go env -w GOPROXY=https://goproxy.cn,direct
 
 WORKDIR /src
@@ -21,7 +22,8 @@ RUN --mount=target=. \
     --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     # go build -ldflags="-w -s" -o /app/main ./cmd/openwrt-wan-reconnect/*.go
-    go build -tags ${build_tag} -v -o /app/fdu-connect -trimpath -ldflags "-s -w -buildid=" .
+    go build -v -o /app/fdu-connect -trimpath \
+    -ldflags "-s -w -buildid= -X main.fduConnectVersion=${VERSION} -X main.CommitID=${COMMIT_ID}" .
 
 # Import the binary from build stage
 # use root container, but still use /home/nonroot to keep backward support

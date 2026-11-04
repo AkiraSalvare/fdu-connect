@@ -1,96 +1,91 @@
 package configs
 
-type (
-	Config struct {
-		ServerAddress       string
-		ServerPort          int
-		Username            string
-		Password            string
-		TOTPSecret          string
-		CertFile            string
-		CertPassword        string
-		DisableServerConfig bool
-		SkipDomainResource  bool
-		DisableFDUConfig    bool
-		DisableFDUDNS       bool
-		DisableMultiLine    bool
-		ProxyAll            bool
-		SocksBind           string
-		SocksUser           string
-		SocksPasswd         string
-		HTTPBind            string
-		ShadowsocksURL      string
-		DialDirectProxy     string
-		TUNMode             bool
-		AddRoute            bool
-		DNSTTL              uint64
-		DisableKeepAlive    bool
-		FDUDNSServer        string
-		SecondaryDNSServer  string
-		DNSServerBind       string
-		DNSHijack           bool
-		DebugDump           bool
-		PortForwardingList  []SinglePortForwarding
-		CustomDNSList       []SingleCustomDNS
-		CustomProxyDomain   []string
-		TwfID               string
-	}
+type Config struct {
+	// Common fields
+	Protocol            string                 `koanf:"protocol"`
+	ServerAddress       string                 `koanf:"server_address"`
+	ServerPort          int                    `koanf:"server_port"`
+	Username            string                 `koanf:"username"`
+	Password            string                 `koanf:"password"`
+	TOTPSecret          string                 `koanf:"totp_secret"`
+	SocksBind           string                 `koanf:"socks_bind"`
+	SocksUser           string                 `koanf:"socks_user"`
+	SocksPasswd         string                 `koanf:"socks_passwd"`
+	HTTPBind            string                 `koanf:"http_bind"`
+	PortForwardingList  []SinglePortForwarding `koanf:"port_forwarding"`
+	ShadowsocksURL      string                 `koanf:"shadowsocks_url"`
+	DialDirectProxy     string                 `koanf:"dial_direct_proxy"`
+	DisableServerConfig bool                   `koanf:"disable_server_config"`
+	DisableRemoteDNS    bool                   `koanf:"disable_remote_dns"`
+	DNSTTL              uint64                 `koanf:"dns_ttl"`
+	RemoteDNSServer     string                 `koanf:"remote_dns_server"`
+	SecondaryDNSServer  string                 `koanf:"secondary_dns_server"`
+	DNSServerBind       string                 `koanf:"dns_server_bind"`
+	LocalDNSServer      string                 `koanf:"local_dns_server"`
+	CustomDNSList       []SingleCustomDNS      `koanf:"custom_dns"`
+	DisableKeepAlive    bool                   `koanf:"disable_keep_alive"`
+	KeepAliveURL        string                 `koanf:"keep_alive_url"`
+	TCPTunnelMode       bool                   `koanf:"tcp_tunnel_mode"`
+	TUNMode             bool                   `koanf:"tun_mode"`
+	AddRoute            bool                   `koanf:"add_route"`
+	DNSHijack           bool                   `koanf:"dns_hijack"`
+	ProxyAll            bool                   `koanf:"proxy_all"`
+	FakeIP              bool                   `koanf:"fake_ip"`
+	GraphCodeFile       string                 `koanf:"graph_code_file"`
+	DebugDump           bool                   `koanf:"debug_dump"`
+	DebugPCAPFile       string                 `koanf:"debug_pcap_file"`
+	DebugTLSLogFile     string                 `koanf:"debug_tls_log_file"`
+	BindInterface       string                 `koanf:"bind_interface"`
+	AutoDetectInterface bool                   `koanf:"auto_detect_interface"`
 
-	SinglePortForwarding struct {
-		NetworkType   string
-		BindAddress   string
-		RemoteAddress string
-	}
+	// EasyConnect fields
+	CertFile           string   `koanf:"cert_file"`
+	CertPassword       string   `koanf:"cert_password"`
+	DisableFDUConfig   bool     `koanf:"disable_fdu_config"`
+	SkipDomainResource bool     `koanf:"skip_domain_resource"`
+	DisableMultiLine   bool     `koanf:"disable_multi_line"`
+	CustomProxyDomain  []string `koanf:"custom_proxy_domain"`
+	TwfID              string   `koanf:"twf_id"`
 
-	SingleCustomDNS struct {
-		HostName string `toml:"host_name"`
-		IP       string `toml:"ip"`
-	}
-)
+	// aTrust fields
+	AuthType                string   `koanf:"auth_type"`
+	Phone                   string   `koanf:"phone"`
+	LoginDomain             string   `koanf:"login_domain"`
+	ClientDataFile          string   `koanf:"client_data_file"`
+	CasTicket               string   `koanf:"cas_ticket"`
+	OAuth2Code              string   `koanf:"oauth2_code"`
+	SID                     string   `koanf:"sid"`
+	DeviceID                string   `koanf:"device_id"`
+	MACAddresses            []string `koanf:"mac_addresses"`
+	SignKey                 string   `koanf:"sign_key"`
+	ResourceFile            string   `koanf:"resource_file"`
+	UpdateBestNodesInterval int      `koanf:"update_best_nodes_interval"`
+	SessionRefreshInterval  int      `koanf:"session_refresh_interval"`
+}
 
-type (
-	ConfigTOML struct {
-		ServerAddress       *string                    `toml:"server_address"`
-		ServerPort          *int                       `toml:"server_port"`
-		Username            *string                    `toml:"username"`
-		Password            *string                    `toml:"password"`
-		TOTPSecret          *string                    `toml:"totp_secret"`
-		CertFile            *string                    `toml:"cert_file"`
-		CertPassword        *string                    `toml:"cert_password"`
-		DisableServerConfig *bool                      `toml:"disable_server_config"`
-		SkipDomainResource  *bool                      `toml:"skip_domain_resource"`
-		DisableFDUConfig    *bool                      `toml:"disable_fdu_config"`
-		DisableFDUDNS       *bool                      `toml:"disable_fdu_dns"`
-		DisableMultiLine    *bool                      `toml:"disable_multi_line"`
-		ProxyAll            *bool                      `toml:"proxy_all"`
-		SocksBind           *string                    `toml:"socks_bind"`
-		SocksUser           *string                    `toml:"socks_user"`
-		SocksPasswd         *string                    `toml:"socks_passwd"`
-		HTTPBind            *string                    `toml:"http_bind"`
-		ShadowsocksURL      *string                    `toml:"shadowsocks_url"`
-		DialDirectProxy     *string                    `toml:"dial_direct_proxy"`
-		TUNMode             *bool                      `toml:"tun_mode"`
-		AddRoute            *bool                      `toml:"add_route"`
-		DNSTTL              *uint64                    `toml:"dns_ttl"`
-		DisableKeepAlive    *bool                      `toml:"disable_keep_alive"`
-		FDUDNSServer        *string                    `toml:"fdu_dns_server"`
-		SecondaryDNSServer  *string                    `toml:"secondary_dns_server"`
-		DNSServerBind       *string                    `toml:"dns_server_bind"`
-		DNSHijack           *bool                      `toml:"dns_hijack"`
-		DebugDump           *bool                      `toml:"debug_dump"`
-		PortForwarding      []SinglePortForwardingTOML `toml:"port_forwarding"`
-		CustomDNS           []SingleCustomDNSTOML      `toml:"custom_dns"`
-		CustomProxyDomain   []string                   `toml:"custom_proxy_domain"`
-	}
+type SinglePortForwarding struct {
+	NetworkType   string `koanf:"network_type"`
+	BindAddress   string `koanf:"bind_address"`
+	RemoteAddress string `koanf:"remote_address"`
+}
 
-	SinglePortForwardingTOML struct {
-		NetworkType   *string `toml:"network_type"`
-		BindAddress   *string `toml:"bind_address"`
-		RemoteAddress *string `toml:"remote_address"`
-	}
+type SingleCustomDNS struct {
+	HostName string `koanf:"host_name"`
+	IP       string `koanf:"ip"`
+}
 
-	SingleCustomDNSTOML struct {
-		HostName *string `toml:"host_name"`
-		IP       *string `toml:"ip"`
+func Default() Config {
+	return Config{
+		Protocol:                "easyconnect",
+		ServerAddress:           "stuvpn.fudan.edu.cn",
+		ServerPort:              443,
+		SocksBind:               ":1080",
+		HTTPBind:                ":1081",
+		DNSTTL:                  3600,
+		RemoteDNSServer:         "202.120.224.26",
+		SecondaryDNSServer:      "auto",
+		LoginDomain:             "Radius",
+		UpdateBestNodesInterval: 300,
+		SessionRefreshInterval:  1800,
 	}
-)
+}

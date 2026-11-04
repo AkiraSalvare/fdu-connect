@@ -1,75 +1,112 @@
 package mobile
 
 import (
-	"crypto/tls"
-	"github.com/akirasalvare/fdu-connect/client"
+	"sync"
+
+	"github.com/akirasalvare/fdu-connect/client/easyconnect"
 	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/akirasalvare/fdu-connect/stack/tun"
+	"github.com/akirasalvare/fdu-connect/underlay"
 )
 
-var vpnClient *client.EasyConnectClient
+var vpnClient *easyconnect.Client
+var vpnUnderlay *underlay.Dialer
+var vpnClientMu sync.Mutex
+var loginMu sync.Mutex
 
 func Login(server string, username string, password string) string {
 	log.Init()
 
-	vpnClient = client.NewEasyConnectClient(
-		server,
-		username,
-		password,
-		"",
-		tls.Certificate{},
-		"",
-		false,
-		false,
-		false,
-	)
-	err := vpnClient.Setup()
-	if err != nil {
-		return ""
-	}
-
-	log.Printf("EasyConnect client started")
-
-	clientIP, err := vpnClient.IP()
-	if err != nil {
-		return ""
-	}
-
-	return clientIP.String()
+	return login(server, username, password)
 }
 
 func DebugLogin(server string, username string, password string) string {
 	log.Init()
 	log.EnableDebug()
 
-	vpnClient = client.NewEasyConnectClient(
-		server,
-		username,
-		password,
-		"",
-		tls.Certificate{},
-		"",
-		false,
-		false,
-		false,
-	)
-	err := vpnClient.Setup()
+	return login(server, username, password)
+}
+
+func Logout() {
+	vpnClientMu.Lock()
+	defer vpnClientMu.Unlock()
+
+	if vpnClient != nil {
+		vpnClient.Close()
+		vpnClient = nil
+	}
+	if vpnUnderlay != nil {
+		_ = vpnUnderlay.Close()
+		vpnUnderlay = nil
+	}
+}
+
+func login(server string, username string, password string) string {
+	loginMu.Lock()
+	defer loginMu.Unlock()
+
+	newUnderlay, err := underlay.New(underlay.Options{AutoDetect: false})
 	if err != nil {
+		return ""
+	}
+	newClient := easyconnect.NewClient(easyconnect.Options{
+		Server: server,
+		Auth: easyconnect.AuthOptions{
+			Username: username,
+			Password: password,
+		},
+		UnderlayDialer: newUnderlay,
+	})
+
+	// Close the old client and clear vpnClient to nil during setup so that
+	// concurrent StartStack calls see nil and return early rather than
+	// operating on an uninitialized client.
+	vpnClientMu.Lock()
+	old := vpnClient
+	oldUnderlay := vpnUnderlay
+	vpnClient = nil
+	vpnUnderlay = nil
+	vpnClientMu.Unlock()
+	if old != nil {
+		old.Close()
+	}
+	if oldUnderlay != nil {
+		_ = oldUnderlay.Close()
+	}
+
+	err = newClient.Setup()
+	if err != nil {
+		newClient.Close()
+		_ = newUnderlay.Close()
 		return ""
 	}
 
 	log.Printf("EasyConnect client started")
 
-	clientIP, err := vpnClient.IP()
+	clientIP, err := newClient.IP()
 	if err != nil {
+		newClient.Close()
+		_ = newUnderlay.Close()
 		return ""
 	}
+
+	vpnClientMu.Lock()
+	vpnClient = newClient
+	vpnUnderlay = newUnderlay
+	vpnClientMu.Unlock()
 
 	return clientIP.String()
 }
 
 func StartStack(fd int) {
-	vpnTUNStack, err := tun.NewStack(vpnClient)
+	vpnClientMu.Lock()
+	client := vpnClient
+	vpnClientMu.Unlock()
+	if client == nil {
+		return
+	}
+
+	vpnTUNStack, err := tun.NewStack(client, false, false, nil)
 	if err != nil {
 		return
 	}

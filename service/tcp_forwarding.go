@@ -1,30 +1,25 @@
 package service
 
 import (
-	"github.com/akirasalvare/fdu-connect/log"
-	"github.com/akirasalvare/fdu-connect/stack"
+	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net"
-	"strconv"
-	"strings"
+
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/log"
 )
 
-func handleRequest(stack stack.Stack, conn net.Conn, remoteAddress string) {
+func handleTCPForwardingRequest(dialContext client.DialContextFunc, conn net.Conn, remoteAddress string) {
 	log.Printf("Port forwarding (TCP): %s -> %s -> %s", conn.RemoteAddr(), conn.LocalAddr(), remoteAddress)
 
-	parts := strings.Split(remoteAddress, ":")
-	host := parts[0]
-	port, err := strconv.Atoi(parts[1])
+	proxy, err := dialContext(context.Background(), "tcp", remoteAddress)
 	if err != nil {
-		panic(err)
-	}
-
-	proxy, err := stack.DialTCP(&net.TCPAddr{
-		IP:   net.ParseIP(host),
-		Port: port,
-	})
-	if err != nil {
-		panic(err)
+		log.Printf("Port forwarding (TCP) dial %s failed: %v", remoteAddress, err)
+		_ = conn.Close()
+		return
 	}
 
 	go copyIO(conn, proxy)
@@ -41,7 +36,7 @@ func copyIO(src, dest net.Conn) {
 	_, _ = io.Copy(src, dest)
 }
 
-func ServeTCPForwarding(stack stack.Stack, bindAddress string, remoteAddress string) {
+func ServeTCPForwarding(dialContext client.DialContextFunc, bindAddress string, remoteAddress string) {
 	ln, err := net.Listen("tcp", bindAddress)
 	if err != nil {
 		panic(err)
@@ -49,12 +44,24 @@ func ServeTCPForwarding(stack stack.Stack, bindAddress string, remoteAddress str
 
 	log.Printf("TCP port forwarding: %s -> %s", bindAddress, remoteAddress)
 
+	hook_func.RegisterTerminalFunc("CloseTCPForwardingPort", func(ctx context.Context) error {
+		log.Println("Closing TCP forwarding port...")
+		if err := ln.Close(); err != nil {
+			return fmt.Errorf("close TCP forwarding listener failed: %w", err)
+		}
+		return nil
+	})
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				log.Println("TCP forwarding port closed")
+				return
+			}
 			panic(err)
 		}
 
-		go handleRequest(stack, conn, remoteAddress)
+		go handleTCPForwardingRequest(dialContext, conn, remoteAddress)
 	}
 }

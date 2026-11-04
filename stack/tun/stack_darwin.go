@@ -13,19 +13,20 @@ import (
 	"github.com/akirasalvare/fdu-connect/client"
 	"github.com/akirasalvare/fdu-connect/internal/hook_func"
 	"github.com/akirasalvare/fdu-connect/log"
-	tun "github.com/cxz66666/sing-tun"
+	tun "github.com/mythologyli/sing-tun"
 	"golang.org/x/sys/unix"
 	"inet.af/netaddr"
 )
 
 type Endpoint struct {
-	easyConnectClient *client.EasyConnectClient
+	client client.Client
 
 	ifce      tun.Tun
 	ifceName  string
 	ifceIndex int
 	readLock  sync.Mutex
 	writeLock sync.Mutex
+	configMu  sync.RWMutex
 	ip        net.IP
 
 	ipSetBuilder netaddr.IPSetBuilder
@@ -85,16 +86,17 @@ func (s *Stack) AddDnsServer(dnsServer string, targetHost string) error {
 	return nil
 }
 
-func NewStack(easyConnectClient *client.EasyConnectClient, dnsHijack bool, ipResources []client.IPResource) (*Stack, error) {
+func NewStack(vpnClient client.Client, dnsHijack, fakeIP bool, ipResources []client.IPResource) (*Stack, error) {
 	var err error
 	s := &Stack{}
 	s.ipResources = ipResources
+	s.fakeIP = fakeIP
 	s.endpoint = &Endpoint{
-		easyConnectClient: easyConnectClient,
+		client: vpnClient,
 	}
 	s.endpoint.ipSetBuilder = netaddr.IPSetBuilder{}
 
-	s.endpoint.ip, err = easyConnectClient.IP()
+	s.endpoint.ip, err = vpnClient.IP()
 	if err != nil {
 		return nil, err
 	}
@@ -170,5 +172,32 @@ func NewStack(easyConnectClient *client.EasyConnectClient, dnsHijack bool, ipRes
 			}
 		}
 	}
+	client.RegisterIPUpdateHandler(vpnClient, s.updateIP)
 	return s, nil
+}
+
+func (s *Stack) updateIP(ip net.IP) error {
+	newIP := ip.To4()
+	if newIP == nil {
+		return fmt.Errorf("virtual IP update is not IPv4")
+	}
+	s.endpoint.configMu.Lock()
+	defer s.endpoint.configMu.Unlock()
+	oldIP := append(net.IP(nil), s.endpoint.ip...)
+	if oldIP.Equal(newIP) {
+		return nil
+	}
+	add := exec.Command("ifconfig", s.endpoint.ifceName, "inet", newIP.String(), newIP.String(), "netmask", "255.255.255.255", "alias")
+	if output, err := add.CombinedOutput(); err != nil {
+		return fmt.Errorf("add virtual IP: %w: %s", err, output)
+	}
+	del := exec.Command("ifconfig", s.endpoint.ifceName, "inet", oldIP.String(), "-alias")
+	if output, err := del.CombinedOutput(); err != nil {
+		_ = exec.Command("ifconfig", s.endpoint.ifceName, "inet", newIP.String(), "-alias").Run()
+		return fmt.Errorf("remove old virtual IP: %w: %s", err, output)
+	}
+	s.endpoint.ip = append(net.IP(nil), newIP...)
+	s.endpoint.tcpDialer.LocalAddr = &net.TCPAddr{IP: append(net.IP(nil), newIP...)}
+	s.endpoint.udpDialer.LocalAddr = &net.UDPAddr{IP: append(net.IP(nil), newIP...)}
+	return nil
 }

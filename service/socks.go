@@ -1,7 +1,13 @@
 package service
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+
 	"github.com/akirasalvare/fdu-connect/dial"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
 	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/akirasalvare/fdu-connect/resolve"
 	"github.com/things-go/go-socks5"
@@ -27,9 +33,26 @@ func ServeSocks5(bindAddr string, dialer *dial.Dialer, resolver *resolve.Resolve
 		socks5.WithLogger(socks5.NewLogger(log.NewLogger("[SOCKS5] "))),
 	)
 
-	log.Printf("SOCKS5 server listening on " + bindAddr)
+	log.Printf("SOCKS5 server listening on %s", bindAddr)
 
-	if err := server.ListenAndServe("tcp", bindAddr); err != nil {
+	listener, err := net.Listen("tcp", bindAddr)
+	if err != nil {
 		panic("SOCKS5 listen failed: " + err.Error())
+	}
+
+	hook_func.RegisterTerminalFunc("CloseSocks5Listener", func(ctx context.Context) error {
+		log.Println("Closing SOCKS5 listener...")
+		if err := listener.Close(); err != nil {
+			return fmt.Errorf("close SOCKS5 listener failed: %w", err)
+		}
+		return nil
+	})
+
+	if err = server.Serve(listener); err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			log.Println("SOCKS5 server closed")
+		} else {
+			log.Println("SOCKS5 listen failed: " + err.Error())
+		}
 	}
 }

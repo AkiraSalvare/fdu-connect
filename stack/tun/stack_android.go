@@ -1,33 +1,38 @@
 package tun
 
 import (
-	"github.com/akirasalvare/fdu-connect/client"
-	"github.com/akirasalvare/fdu-connect/log"
-	"golang.org/x/net/ipv4"
 	"io"
 	"net"
 	"os"
+	"sync"
 	"syscall"
+
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/ippool"
+	"github.com/akirasalvare/fdu-connect/internal/zcdns"
+	"github.com/akirasalvare/fdu-connect/log"
+	"golang.org/x/net/ipv4"
 )
 
 const MTU uint32 = 1400
+const maxInboundPacketSize = 1500
 
 type Stack struct {
 	endpoint *Endpoint
-	rvpnConn io.ReadWriteCloser
+	l3Conn   io.ReadWriteCloser
 }
 
 func (s *Stack) Run() {
 	var connErr error
-	s.rvpnConn, connErr = client.NewRvpnConn(s.endpoint.easyConnectClient)
+	s.l3Conn, connErr = s.endpoint.client.NewL3Conn()
 	if connErr != nil {
 		return
 	}
 	// Read from VPN server and send to TUN stack
 	go func() {
+		buf := make([]byte, maxInboundPacketSize)
 		for {
-			buf := make([]byte, MTU)
-			n, err := s.rvpnConn.Read(buf)
+			n, err := s.l3Conn.Read(buf)
 			if err != nil {
 				log.Printf("Error occurred while reading from VPN server: %v", err)
 				return
@@ -44,8 +49,8 @@ func (s *Stack) Run() {
 	}()
 
 	// Read from TUN stack and send to VPN server
+	buf := make([]byte, MTU)
 	for {
-		buf := make([]byte, MTU)
 		n, err := s.endpoint.Read(buf)
 		if err != nil {
 			log.Printf("Error occurred while reading from TUN stack: %v", err)
@@ -62,7 +67,7 @@ func (s *Stack) Run() {
 			continue
 		}
 
-		n, err = s.rvpnConn.Write(buf[:n])
+		n, err = s.l3Conn.Write(buf[:n])
 		if err != nil {
 			log.Printf("Error occurred while writing to VPN server: %v", err)
 			return
@@ -73,13 +78,14 @@ func (s *Stack) Run() {
 }
 
 type Endpoint struct {
-	easyConnectClient *client.EasyConnectClient
+	client client.Client
 
 	readWriteCloser io.ReadWriteCloser
 	ip              net.IP
 
 	tcpDialer *net.Dialer
 	udpDialer *net.Dialer
+	configMu  sync.RWMutex
 }
 
 func (ep *Endpoint) Write(buf []byte) error {
@@ -98,15 +104,19 @@ func (s *Stack) AddRoute(target string) error {
 	return nil
 }
 
-func NewStack(easyConnectClient *client.EasyConnectClient) (*Stack, error) {
+func (s *Stack) SetupResolve(zcdns.LocalServer) {}
+
+func (s *Stack) SetupIPPool(*ippool.IPPool[[]client.DomainResource]) {}
+
+func NewStack(client client.Client, _ bool, _ bool, _ []client.IPResource) (*Stack, error) {
 	s := &Stack{}
 
 	s.endpoint = &Endpoint{
-		easyConnectClient: easyConnectClient,
+		client: client,
 	}
 
 	var err error
-	s.endpoint.ip, err = easyConnectClient.IP()
+	s.endpoint.ip, err = client.IP()
 	if err != nil {
 		return nil, err
 	}

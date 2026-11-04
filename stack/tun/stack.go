@@ -3,45 +3,78 @@
 package tun
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"github.com/akirasalvare/fdu-connect/internal/hook_func"
 	"io"
+	"net"
+	"sync"
 
-	tun "github.com/cxz66666/sing-tun"
-	"github.com/miekg/dns"
 	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/internal/ippool"
+	"github.com/akirasalvare/fdu-connect/internal/ipresource"
 	"github.com/akirasalvare/fdu-connect/internal/zcdns"
 	"github.com/akirasalvare/fdu-connect/internal/zctcpip"
 	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/akirasalvare/fdu-connect/resolve"
+	"github.com/miekg/dns"
+	tun "github.com/mythologyli/sing-tun"
+	"gvisor.dev/gvisor/pkg/buffer"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	gvisorstack "gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 const MTU uint32 = 1400
+const maxInboundPacketSize = 1500
 
 type Stack struct {
-	endpoint    *Endpoint
-	rvpnConn    io.ReadWriteCloser
-	resolve     zcdns.LocalServer
-	ipResources []client.IPResource
+	endpoint            *Endpoint
+	tcpListenerEndpoint *TCPListenerEndpoint
+	tcpListenerStack    *gvisorstack.Stack
+	l3Conn              io.ReadWriteCloser
+	resolve             zcdns.LocalServer
+	ipResources         []client.IPResource
+	resourceIndexOnce   sync.Once
+	resourceIndex       *ipresource.Index
+	resourceCache       *resourceDecisionCache
+	ipPool              *ippool.IPPool[[]client.DomainResource]
+	fakeIP              bool
 }
 
 func (s *Stack) SetupResolve(r zcdns.LocalServer) {
 	s.resolve = r
 }
 
+func (s *Stack) SetupIPPool(ipPool *ippool.IPPool[[]client.DomainResource]) {
+	s.ipPool = ipPool
+}
+
 func (s *Stack) Run() {
+	if s.endpoint.client.CanUseTCPTunnel() {
+		err := s.CreateTCPListener()
+		if err != nil {
+			panic(err)
+		}
+		s.StartTCPListener()
+	}
+
 	var connErr error
-	s.rvpnConn, connErr = client.NewRvpnConn(s.endpoint.easyConnectClient)
+	s.l3Conn, connErr = s.endpoint.client.NewL3Conn()
 	if connErr != nil {
 		panic(connErr)
 	}
+	defer s.l3Conn.Close()
+
 	// Read from VPN server and send to TUN stack
 	go func() {
+		buf := make([]byte, maxInboundPacketSize+tun.PacketOffset)
 		for {
-			buf := make([]byte, MTU+tun.PacketOffset)
-			n, err := s.rvpnConn.Read(buf)
+			n, err := s.l3Conn.Read(buf)
 			if err != nil {
+				if hook_func.IsTerminal() {
+					return
+				}
 				panic(err)
 			}
 			log.DebugPrintf("Recv: read %d bytes", n)
@@ -60,8 +93,8 @@ func (s *Stack) Run() {
 	}()
 
 	// Read from TUN stack and send to VPN server
+	buf := make([]byte, MTU+tun.PacketOffset)
 	for {
-		buf := make([]byte, MTU+tun.PacketOffset)
 		n, err := s.endpoint.Read(buf)
 		if err != nil {
 			if hook_func.IsTerminal() {
@@ -118,21 +151,33 @@ func (s *Stack) processIPV4(packet zctcpip.IPv4Packet) error {
 		return fmt.Errorf("protocol %d not supported, skip", packet.Protocol())
 	}
 
-	for _, resource := range s.ipResources {
-		if bytes.Compare(packet.DestinationIP(), resource.IPMin) >= 0 && bytes.Compare(packet.DestinationIP(), resource.IPMax) <= 0 {
-			if resource.Protocol == protocol || resource.Protocol == "all" {
-				if protocol == "icmp" {
-					return s.processIPV4ICMP(packet, packet.Payload())
-				}
+	domain, resources, ok := s.ipPool.GetDomain(packet.DestinationIP())
+	if ok {
+		log.DebugPrintf("IP to domain %s", domain)
 
-				if resource.PortMin <= port && port <= resource.PortMax {
-					if protocol == "tcp" {
-						return s.processIPV4TCP(packet, packet.Payload())
-					} else {
-						return s.processIPV4UDP(packet, packet.Payload())
-					}
-				}
+		if _, matched := client.MatchDomainResource(resources, protocol, port); matched {
+			if protocol == "tcp" {
+				_, tcpTunnelMatched := client.MatchDomainResourceWhere(resources, protocol, port, func(resource client.DomainResource) bool {
+					return !resource.EnableTCPPrefL3
+				})
+				return s.processIPV4TCP(packet, packet.Payload(), tcpTunnelMatched)
+			} else {
+				return s.processIPV4UDP(packet, packet.Payload())
 			}
+		}
+	}
+
+	if _, matched := s.matchStaticResource(packet.DestinationIP(), protocol, port); matched {
+		if protocol == "icmp" {
+			return s.processIPV4ICMP(packet, packet.Payload())
+		}
+		if protocol == "tcp" {
+			_, tcpTunnelMatched := s.resourceIndex.MatchWhere(packet.DestinationIP(), protocol, port, func(resource client.IPResource) bool {
+				return !resource.EnableTCPPrefL3
+			})
+			return s.processIPV4TCP(packet, packet.Payload(), tcpTunnelMatched)
+		} else {
+			return s.processIPV4UDP(packet, packet.Payload())
 		}
 	}
 
@@ -143,14 +188,53 @@ func (s *Stack) processIPV4(packet zctcpip.IPv4Packet) error {
 	}
 }
 
-func (s *Stack) processIPV4TCP(packet zctcpip.IPv4Packet, tcpPacket zctcpip.TCPPacket) error {
+func (s *Stack) matchesStaticResource(destination net.IP, protocol string, port int) bool {
+	ip, ok := ipresource.IPv4Uint32(destination)
+	if !ok {
+		return false
+	}
+	s.resourceIndexOnce.Do(func() {
+		s.resourceIndex = ipresource.New(s.ipResources)
+		s.resourceCache = newResourceDecisionCache()
+	})
+	key := resourceDecisionKey{ip: ip, protocol: protocol, port: port}
+	if decision, ok := s.resourceCache.get(key); ok {
+		return decision
+	}
+	_, decision := s.resourceIndex.Match(destination, protocol, port)
+	s.resourceCache.set(key, decision)
+	return decision
+}
+
+func (s *Stack) matchStaticResource(destination net.IP, protocol string, port int) (client.IPResource, bool) {
+	s.resourceIndexOnce.Do(func() {
+		s.resourceIndex = ipresource.New(s.ipResources)
+		s.resourceCache = newResourceDecisionCache()
+	})
+	return s.resourceIndex.Match(destination, protocol, port)
+}
+
+func (s *Stack) processIPV4TCP(packet zctcpip.IPv4Packet, tcpPacket zctcpip.TCPPacket, useTCPTunnel bool) error {
 	log.DebugPrintf("receive tcp %s:%d -> %s:%d", packet.SourceIP(), tcpPacket.SourcePort(), packet.DestinationIP(), tcpPacket.DestinationPort())
 
 	if !packet.DestinationIP().IsGlobalUnicast() {
 		return s.endpoint.Write(packet)
 	}
-	n, err := s.rvpnConn.Write(packet)
+
+	if useTCPTunnel && s.endpoint.client.CanUseTCPTunnel() {
+		pkt := gvisorstack.NewPacketBuffer(gvisorstack.PacketBufferOptions{
+			Payload: buffer.MakeWithData(packet),
+		})
+		defer pkt.DecRef()
+		s.tcpListenerEndpoint.dispatcher.DeliverNetworkPacket(ipv4.ProtocolNumber, pkt)
+		return nil
+	}
+
+	n, err := s.l3Conn.Write(packet)
 	if err != nil {
+		if errors.Is(err, client.ErrResourceNotFound) {
+			return err
+		}
 		panic(err)
 	}
 	log.DebugPrintf("Send: wrote %d bytes", n)
@@ -166,8 +250,11 @@ func (s *Stack) processIPV4UDP(packet zctcpip.IPv4Packet, udpPacket zctcpip.UDPP
 		return s.endpoint.Write(packet)
 	}
 
-	n, err := s.rvpnConn.Write(packet)
+	n, err := s.l3Conn.Write(packet)
 	if err != nil {
+		if errors.Is(err, client.ErrResourceNotFound) {
+			return err
+		}
 		panic(err)
 	}
 	log.DebugPrintf("Send: wrote %d bytes", n)
@@ -182,8 +269,11 @@ func (s *Stack) processIPV4ICMP(packet zctcpip.IPv4Packet, icmpHeader zctcpip.IC
 		return nil
 	}
 
-	n, err := s.rvpnConn.Write(packet)
+	n, err := s.l3Conn.Write(packet)
 	if err != nil {
+		if errors.Is(err, client.ErrResourceNotFound) {
+			return err
+		}
 		panic(err)
 	}
 	log.DebugPrintf("Send: wrote %d bytes", n)
@@ -207,7 +297,11 @@ func (s *Stack) doHijackUDPDns(ipHeader zctcpip.IPv4Packet, udpHeader zctcpip.UD
 		log.Printf("unpack dns msg error: %v", err)
 		return
 	}
-	resMsg, err := s.resolve.HandleDnsMsg(context.Background(), &msg)
+	ctx := context.Background()
+	if s.fakeIP && s.endpoint.client.CanUseTCPTunnel() {
+		ctx = context.WithValue(ctx, resolve.ContextKeyFakeIP, true)
+	}
+	resMsg, err := s.resolve.HandleDnsMsg(ctx, &msg)
 	if err != nil {
 		log.Printf("hijack dns %s:%d -> %s:%d error: %v", ipHeader.SourceIP(), udpHeader.SourcePort(), ipHeader.DestinationIP(), udpHeader.DestinationPort(), err)
 		return

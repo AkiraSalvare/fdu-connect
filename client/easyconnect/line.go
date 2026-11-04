@@ -1,20 +1,23 @@
-package client
+package easyconnect
 
 import (
 	"errors"
-	"github.com/cloverstd/tcping/ping"
+	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/internal/ping"
 )
 
 const pingNum = 3
 
-func findBestLine(lineList []string) (string, error) {
+func findBestLine(lineList []string, dialContext client.DialContextFunc, keyLogWriter io.Writer) (string, error) {
 	bestLine := ""
 	bestLatency := int64(0)
 
-	var pingList []ping.TCPing
+	var pingList []*ping.TCPing
 	var chList []<-chan struct{}
 
 	for _, server := range lineList {
@@ -26,6 +29,8 @@ func findBestLine(lineList []string) (string, error) {
 		}
 
 		tcping := ping.NewTCPing()
+		tcping.SetDialContext(dialContext)
+		tcping.SetKeyLogWriter(keyLogWriter)
 		target := ping.Target{
 			Protocol: ping.TCP,
 			Host:     host,
@@ -36,7 +41,7 @@ func findBestLine(lineList []string) (string, error) {
 		}
 		tcping.SetTarget(&target)
 
-		pingList = append(pingList, *tcping)
+		pingList = append(pingList, tcping)
 		ch := tcping.Start()
 		chList = append(chList, ch)
 	}

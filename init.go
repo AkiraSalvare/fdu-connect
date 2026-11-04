@@ -1,234 +1,594 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"regexp"
 	"strings"
 
-	"github.com/BurntSushi/toml"
+	"github.com/akirasalvare/fdu-connect/client/atrust"
 	"github.com/akirasalvare/fdu-connect/configs"
+	"github.com/knadh/koanf/parsers/toml/v2"
+	"github.com/knadh/koanf/providers/env/v2"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/providers/posflag"
+	"github.com/knadh/koanf/providers/structs"
+	"github.com/knadh/koanf/v2"
+	"github.com/spf13/pflag"
 )
 
-func getTOMLVal[T int | uint64 | string | bool](valPointer *T, defaultVal T) T {
-	if valPointer == nil {
-		return defaultVal
-	} else {
-		return *valPointer
-	}
+const envPrefix = "FDU_CONNECT_"
+
+var (
+	fduConnectVersion = "dev"
+	CommitID          string
+	domainPattern     = regexp.MustCompile(`^[a-zA-Z\d-]+(\.[a-zA-Z\d-]+)*\.[a-zA-Z]{2,}$`)
+)
+
+type startupOptions struct {
+	Config        configs.Config
+	ShowVersion   bool
+	AuthInfo      bool
+	TrustDevice   bool
+	UntrustDevice bool
 }
 
-func parseTOMLConfig(configFile string, conf *configs.Config) error {
-	var confTOML configs.ConfigTOML
+type collectionKey string
 
-	_, err := toml.DecodeFile(configFile, &confTOML)
-	if err != nil {
-		return errors.New("FDU Connect: error parsing the config file")
-	}
+const (
+	collectionTCPPortForwarding collectionKey = "tcp_port_forwarding"
+	collectionUDPPortForwarding collectionKey = "udp_port_forwarding"
+	collectionCustomDNS         collectionKey = "custom_dns"
+	collectionProxyDomain       collectionKey = "custom_proxy_domain"
+)
 
-	conf.ServerAddress = getTOMLVal(confTOML.ServerAddress, "stuvpn.fudan.edu.cn")
-	conf.ServerPort = getTOMLVal(confTOML.ServerPort, 443)
-	conf.Username = getTOMLVal(confTOML.Username, "")
-	conf.Password = getTOMLVal(confTOML.Password, "")
-	conf.TOTPSecret = getTOMLVal(confTOML.TOTPSecret, "")
-	conf.CertFile = getTOMLVal(confTOML.CertFile, "")
-	conf.CertPassword = getTOMLVal(confTOML.CertPassword, "")
-	conf.DisableServerConfig = getTOMLVal(confTOML.DisableServerConfig, false)
-	conf.SkipDomainResource = getTOMLVal(confTOML.SkipDomainResource, false)
-	conf.DisableFDUConfig = getTOMLVal(confTOML.DisableFDUConfig, false)
-	conf.DisableFDUDNS = getTOMLVal(confTOML.DisableFDUDNS, false)
-	conf.DisableMultiLine = getTOMLVal(confTOML.DisableMultiLine, false)
-	conf.ProxyAll = getTOMLVal(confTOML.ProxyAll, false)
-	conf.SocksBind = getTOMLVal(confTOML.SocksBind, ":1080")
-	conf.SocksUser = getTOMLVal(confTOML.SocksUser, "")
-	conf.SocksPasswd = getTOMLVal(confTOML.SocksPasswd, "")
-	conf.HTTPBind = getTOMLVal(confTOML.HTTPBind, ":1081")
-	conf.ShadowsocksURL = getTOMLVal(confTOML.ShadowsocksURL, "")
-	conf.DialDirectProxy = getTOMLVal(confTOML.DialDirectProxy, "")
-	conf.TUNMode = getTOMLVal(confTOML.TUNMode, false)
-	conf.AddRoute = getTOMLVal(confTOML.AddRoute, false)
-	conf.DNSTTL = getTOMLVal(confTOML.DNSTTL, uint64(3600))
-	conf.DebugDump = getTOMLVal(confTOML.DebugDump, false)
-	conf.DisableKeepAlive = getTOMLVal(confTOML.DisableKeepAlive, false)
-	conf.FDUDNSServer = getTOMLVal(confTOML.FDUDNSServer, "202.120.224.26")
-	conf.SecondaryDNSServer = getTOMLVal(confTOML.SecondaryDNSServer, "223.5.5.5")
-	conf.DNSServerBind = getTOMLVal(confTOML.DNSServerBind, "")
-	conf.DNSHijack = getTOMLVal(confTOML.DNSHijack, false)
-
-	for _, singlePortForwarding := range confTOML.PortForwarding {
-		if singlePortForwarding.NetworkType == nil {
-			return errors.New("FDU Connect: network type is not set")
-		}
-
-		if singlePortForwarding.BindAddress == nil {
-			return errors.New("FDU Connect: bind address is not set")
-		}
-
-		if singlePortForwarding.RemoteAddress == nil {
-			return errors.New("FDU Connect: remote address is not set")
-		}
-
-		conf.PortForwardingList = append(conf.PortForwardingList, configs.SinglePortForwarding{
-			NetworkType:   *singlePortForwarding.NetworkType,
-			BindAddress:   *singlePortForwarding.BindAddress,
-			RemoteAddress: *singlePortForwarding.RemoteAddress,
-		})
-	}
-
-	for _, singleCustomDns := range confTOML.CustomDNS {
-		if singleCustomDns.HostName == nil {
-			return errors.New("FDU Connect: host name is not set")
-		}
-
-		if singleCustomDns.IP == nil {
-			fmt.Println("FDU Connect: IP is not set")
-			return errors.New("FDU Connect: IP is not set")
-		}
-
-		conf.CustomDNSList = append(conf.CustomDNSList, configs.SingleCustomDNS{
-			HostName: *singleCustomDns.HostName,
-			IP:       *singleCustomDns.IP,
-		})
-	}
-
-	for _, singleCustomProxyDomain := range confTOML.CustomProxyDomain {
-		var domainRegex = regexp.MustCompile(`^[a-zA-Z\d-]+(\.[a-zA-Z\d-]+)*\.[a-zA-Z]{2,}$`)
-		if !domainRegex.MatchString(singleCustomProxyDomain) {
-			fmt.Printf("FDU Connect: %s is not a valid domain\n", singleCustomProxyDomain)
-			return errors.New(fmt.Sprintf("FDU Connect: %s is not a valid domain", singleCustomProxyDomain))
-		}
-		conf.CustomProxyDomain = append(conf.CustomProxyDomain, singleCustomProxyDomain)
-	}
-
-	return nil
+type collectionSpec struct {
+	Key      collectionKey
+	FlagName string
+	EnvName  string
+	Help     string
 }
 
-func init() {
-	configFile, tcpPortForwarding, udpPortForwarding, customDns, customProxyDomain := "", "", "", "", ""
-	showVersion := false
+var collectionSpecs = []collectionSpec{
+	{collectionTCPPortForwarding, "tcp-port-forwarding", "TCP_PORT_FORWARDING", "TCP port forwarding"},
+	{collectionUDPPortForwarding, "udp-port-forwarding", "UDP_PORT_FORWARDING", "UDP port forwarding"},
+	{collectionCustomDNS, "custom-dns", "CUSTOM_DNS", "Custom DNS lookup entries"},
+	{collectionProxyDomain, "custom-proxy-domain", "CUSTOM_PROXY_DOMAIN", "Domains which force use of the RVPN proxy"},
+}
 
-	flag.StringVar(&conf.ServerAddress, "server", "stuvpn.fudan.edu.cn", "EasyConnect server address")
-	flag.IntVar(&conf.ServerPort, "port", 443, "EasyConnect port address")
-	flag.StringVar(&conf.Username, "username", "", "Your username")
-	flag.StringVar(&conf.Password, "password", "", "Your password")
-	flag.StringVar(&conf.TOTPSecret, "totp-secret", "", "TOTP secret")
-	flag.StringVar(&conf.CertFile, "cert-file", "", "Client certificate p12 file path for certificate login")
-	flag.StringVar(&conf.CertPassword, "cert-password", "", "Client certificate password")
-	flag.BoolVar(&conf.DisableServerConfig, "disable-server-config", false, "Don't parse server config")
-	flag.BoolVar(&conf.SkipDomainResource, "skip-domain-resource", false, "Don't use server domain resource to decide whether to use RVPN.")
-	flag.BoolVar(&conf.DisableFDUConfig, "disable-fdu-config", false, "Don't use FDU config")
-	flag.BoolVar(&conf.DisableFDUDNS, "disable-fdu-dns", false, "Use local DNS instead of FDU DNS")
-	flag.BoolVar(&conf.DisableMultiLine, "disable-multi-line", false, "Disable multi line auto select")
-	flag.BoolVar(&conf.ProxyAll, "proxy-all", false, "Proxy all IPv4 traffic")
-	flag.StringVar(&conf.SocksBind, "socks-bind", ":1080", "The address SOCKS5 server listens on (e.g. 127.0.0.1:1080)")
-	flag.StringVar(&conf.SocksUser, "socks-user", "", "SOCKS5 username, default is don't use auth")
-	flag.StringVar(&conf.SocksPasswd, "socks-passwd", "", "SOCKS5 password, default is don't use auth")
-	flag.StringVar(&conf.HTTPBind, "http-bind", ":1081", "The address HTTP server listens on (e.g. 127.0.0.1:1081)")
-	flag.StringVar(&conf.ShadowsocksURL, "shadowsocks-url", "", "The address Shadowsocks server listens on (e.g. ss://method:password@host:port)")
-	flag.StringVar(&conf.DialDirectProxy, "dial-direct-proxy", "", "Dial with proxy when the connection doesn't match RVPN rules (e.g. http://127.0.0.1:7890)")
-	flag.BoolVar(&conf.TUNMode, "tun-mode", false, "Enable TUN mode (experimental)")
-	flag.BoolVar(&conf.AddRoute, "add-route", false, "Add route from rules for TUN interface")
-	flag.Uint64Var(&conf.DNSTTL, "dns-ttl", 3600, "DNS record time to live, unit is second")
-	flag.BoolVar(&conf.DebugDump, "debug-dump", false, "Enable traffic debug dump (only for debug usage)")
-	flag.BoolVar(&conf.DisableKeepAlive, "disable-keep-alive", false, "Disable keep alive")
-	flag.StringVar(&conf.FDUDNSServer, "fdu-dns-server", "202.120.224.26", "FDU DNS server address. Set to 'auto' to use DNS server provided by server")
-	flag.StringVar(&conf.SecondaryDNSServer, "secondary-dns-server", "223.5.5.5", "Secondary DNS server address. Leave empty to use system default DNS server")
-	flag.StringVar(&conf.DNSServerBind, "dns-server-bind", "", "The address DNS server listens on (e.g. 127.0.0.1:53)")
-	flag.BoolVar(&conf.DNSHijack, "dns-hijack", false, "Hijack all dns query to FDU Connect")
-	flag.StringVar(&conf.TwfID, "twf-id", "", "Login using twfID captured (mostly for debug usage)")
-	flag.StringVar(&tcpPortForwarding, "tcp-port-forwarding", "", "TCP port forwarding (e.g. 0.0.0.0:9898-10.10.98.98:80,127.0.0.1:9899-10.10.98.98:80)")
-	flag.StringVar(&udpPortForwarding, "udp-port-forwarding", "", "UDP port forwarding (e.g. 127.0.0.1:53-202.120.224.26:53)")
-	flag.StringVar(&customDns, "custom-dns", "", "Custom set dns lookup (e.g. zb.fudan.edu.cn:10.108.68.200,mirrors.fducslg.com:10.176.52.2)")
-	flag.StringVar(&customProxyDomain, "custom-proxy-domain", "", "Custom set domains which force use RVPN proxy  (e.g. science.org, nature.com)")
-	flag.StringVar(&configFile, "config", "", "Config file")
-	flag.BoolVar(&showVersion, "version", false, "Show version")
+type configAlias struct {
+	LegacyKey     string
+	CanonicalKey  string
+	LegacyFlag    string
+	CanonicalFlag string
+}
 
-	flag.Parse()
+var configAliases = []configAlias{
+	{"disable_fdu_dns", "disable_remote_dns", "disable-fdu-dns", "disable-remote-dns"},
+	{"fdu_dns_server", "remote_dns_server", "fdu-dns-server", "remote-dns-server"},
+}
 
-	if showVersion {
-		fmt.Printf("FDU Connect v%s\n", fduConnectVersion)
-		os.Exit(0)
+func fduConnectVersionString() string {
+	if CommitID != "" {
+		return fduConnectVersion + "-" + CommitID
+	}
+	return fduConnectVersion
+}
+
+func newFlagSet(defaults configs.Config) *pflag.FlagSet {
+	flags := pflag.NewFlagSet("fdu-connect", pflag.ContinueOnError)
+	flags.String("protocol", defaults.Protocol, "Protocol (easyconnect, atrust)")
+	flags.String("server", defaults.ServerAddress, "EasyConnect/aTrust server address")
+	flags.Int("port", defaults.ServerPort, "EasyConnect/aTrust port address")
+	flags.String("username", defaults.Username, "Your username")
+	flags.String("password", defaults.Password, "Your password")
+	flags.String("totp-secret", defaults.TOTPSecret, "TOTP secret")
+	flags.String("cert-file", defaults.CertFile, "Client certificate p12 file path for certificate login")
+	flags.String("cert-password", defaults.CertPassword, "Client certificate password")
+	flags.Bool("disable-server-config", defaults.DisableServerConfig, "Don't parse server config")
+	flags.Bool("skip-domain-resource", defaults.SkipDomainResource, "Don't use server domain resource to decide whether to use RVPN")
+	flags.Bool("disable-fdu-config", defaults.DisableFDUConfig, "Don't use FDU config (for easyconnect protocol only)")
+	flags.Bool("disable-remote-dns", defaults.DisableRemoteDNS, "Use local DNS instead of remote DNS")
+	flags.Bool("disable-fdu-dns", defaults.DisableRemoteDNS, "Use local DNS instead of remote DNS")
+	_ = flags.MarkDeprecated("disable-fdu-dns", "use --disable-remote-dns instead")
+	flags.Bool("disable-multi-line", defaults.DisableMultiLine, "Disable multi line auto select")
+	flags.Bool("proxy-all", defaults.ProxyAll, "Proxy all traffic (only for debug usage)")
+	flags.String("socks-bind", defaults.SocksBind, "The address SOCKS5 server listens on")
+	flags.String("socks-user", defaults.SocksUser, "SOCKS5 username")
+	flags.String("socks-passwd", defaults.SocksPasswd, "SOCKS5 password")
+	flags.String("http-bind", defaults.HTTPBind, "The address HTTP server listens on")
+	flags.String("shadowsocks-url", defaults.ShadowsocksURL, "The address Shadowsocks server listens on")
+	flags.String("dial-direct-proxy", defaults.DialDirectProxy, "Dial with proxy when a connection doesn't match RVPN rules")
+	flags.Bool("tcp-tunnel-mode", defaults.TCPTunnelMode, "Use TCP tunnel only and disable L3 tunnel")
+	flags.Bool("tun-mode", defaults.TUNMode, "Enable TUN mode (experimental)")
+	flags.Bool("add-route", defaults.AddRoute, "Add route from rules for TUN interface")
+	flags.Uint64("dns-ttl", defaults.DNSTTL, "DNS record time to live in seconds")
+	flags.Bool("debug-dump", defaults.DebugDump, "Enable traffic debug dump")
+	flags.String("debug-pcap-file", defaults.DebugPCAPFile, "Save reconstructed VPN traffic to a PCAP file")
+	flags.String("debug-tls-log-file", defaults.DebugTLSLogFile, "Save TLS session secrets in NSS key log format")
+	flags.Bool("disable-keep-alive", defaults.DisableKeepAlive, "Disable keep alive")
+	flags.String("keep-alive-url", defaults.KeepAliveURL, "Keep alive URL")
+	flags.String("remote-dns-server", defaults.RemoteDNSServer, "Remote DNS server address")
+	flags.String("fdu-dns-server", defaults.RemoteDNSServer, "Remote DNS server address")
+	_ = flags.MarkDeprecated("fdu-dns-server", "use --remote-dns-server instead")
+	flags.String("secondary-dns-server", defaults.SecondaryDNSServer, "Secondary DNS server address")
+	flags.String("dns-server-bind", defaults.DNSServerBind, "The address DNS server listens on")
+	flags.String("local-dns-server", defaults.LocalDNSServer, "DNS server used to resolve the VPN server hostname")
+	flags.Bool("dns-hijack", defaults.DNSHijack, "Hijack DNS queries to FDU Connect")
+	flags.Bool("fake-ip", defaults.FakeIP, "Enable Fake IP for DNS hijack")
+	flags.String("graph-code-file", defaults.GraphCodeFile, "Graph Check Code File")
+	flags.String("bind-interface", defaults.BindInterface, "Bind VPN underlay connections to this network interface")
+	flags.Bool("auto-detect-interface", defaults.AutoDetectInterface, "Automatically detect and bind the VPN underlay interface")
+	flags.String("twf-id", defaults.TwfID, "Login using captured twfID")
+	flags.String("auth-type", defaults.AuthType, "aTrust authentication type")
+	flags.String("phone", defaults.Phone, "Phone number with country code for aTrust SMS login")
+	flags.String("login-domain", defaults.LoginDomain, "aTrust login domain")
+	flags.String("client-data-file", defaults.ClientDataFile, "aTrust Client Data File")
+	flags.String("cas-ticket", defaults.CasTicket, "aTrust CAS Ticket")
+	flags.String("oauth2-code", defaults.OAuth2Code, "aTrust OAuth2 code")
+	flags.String("sid", defaults.SID, "aTrust SID")
+	flags.String("device-id", defaults.DeviceID, "aTrust Device ID")
+	flags.String("sign-key", defaults.SignKey, "aTrust Sign Key")
+	flags.String("resource-file", defaults.ResourceFile, "aTrust Resource File")
+	flags.Int("update-best-nodes-interval", defaults.UpdateBestNodesInterval, "Interval to update best nodes in seconds")
+	flags.Int("session-refresh-interval", defaults.SessionRefreshInterval, "aTrust session refresh interval in seconds (0 disables)")
+
+	for _, spec := range collectionSpecs {
+		flags.String(spec.FlagName, "", spec.Help)
+	}
+
+	flags.String("config", "", "Config file (can also be set with FDU_CONNECT_CONFIG)")
+	flags.Bool("version", false, "Show version")
+	flags.Bool("auth-info", false, "Fetch aTrust authentication information, but do not login")
+	flags.Bool("trust-device", false, "Trust the current device for aTrust, but do not connect")
+	flags.Bool("untrust-device", false, "Untrust the current device for aTrust, but do not connect")
+	return flags
+}
+
+func loadStartupOptions(args []string, environ func() []string) (startupOptions, *pflag.FlagSet, error) {
+	defaults := configs.Default()
+	flags := newFlagSet(defaults)
+	if err := flags.Parse(normalizeLegacyArgs(flags, args)); err != nil {
+		return startupOptions{}, flags, err
+	}
+
+	showVersion, _ := flags.GetBool("version")
+	authInfo, _ := flags.GetBool("auth-info")
+	trustDevice, _ := flags.GetBool("trust-device")
+	untrustDevice, _ := flags.GetBool("untrust-device")
+	configFile, _ := flags.GetString("config")
+	options := startupOptions{
+		ShowVersion:   showVersion,
+		AuthInfo:      authInfo,
+		TrustDevice:   trustDevice,
+		UntrustDevice: untrustDevice,
+	}
+	if options.ShowVersion {
+		return options, flags, nil
+	}
+
+	envValues := environ()
+	if !flags.Lookup("config").Changed {
+		if path, ok := lookupEnvironment(envValues, envPrefix+"CONFIG"); ok {
+			configFile = path
+		}
+	}
+
+	k := koanf.New(".")
+	if err := k.Load(structs.Provider(defaults, "koanf"), nil); err != nil {
+		return startupOptions{}, flags, fmt.Errorf("load config defaults: %w", err)
+	}
+
+	allowedKeys := make(map[string]struct{}, len(k.Keys()))
+	for _, key := range k.Keys() {
+		allowedKeys[key] = struct{}{}
 	}
 
 	if configFile != "" {
-		err := parseTOMLConfig(configFile, &conf)
+		if err := k.Load(file.Provider(configFile), toml.Parser()); err != nil {
+			return startupOptions{}, flags, fmt.Errorf("parse config %q: %w", configFile, err)
+		}
+		if err := normalizeConfigAliases(k); err != nil {
+			return startupOptions{}, flags, fmt.Errorf("parse config %q: %w", configFile, err)
+		}
+		if err := rejectUnknownKeys(k, allowedKeys); err != nil {
+			return startupOptions{}, flags, fmt.Errorf("parse config %q: %w", configFile, err)
+		}
+	}
+
+	envProvider := env.Provider(".", env.Opt{
+		Prefix:      envPrefix,
+		EnvironFunc: func() []string { return envValues },
+		TransformFunc: func(key, value string) (string, any) {
+			key = strings.ToLower(strings.TrimPrefix(key, envPrefix))
+			if key == "config" || isCollectionEnvKey(key) {
+				return "", nil
+			}
+			return key, value
+		},
+	})
+	if err := k.Load(envProvider, nil); err != nil {
+		return startupOptions{}, flags, fmt.Errorf("load environment: %w", err)
+	}
+	if err := normalizeConfigAliases(k); err != nil {
+		return startupOptions{}, flags, fmt.Errorf("load environment: %w", err)
+	}
+	if err := rejectUnknownKeys(k, allowedKeys); err != nil {
+		return startupOptions{}, flags, fmt.Errorf("load environment: %w", err)
+	}
+	if err := applyCollectionValues(k, collectionValuesFromEnvironment(envValues)); err != nil {
+		return startupOptions{}, flags, fmt.Errorf("load environment: %w", err)
+	}
+
+	cliProvider := posflag.ProviderWithFlag(flags, ".", k, func(flag *pflag.Flag) (string, any) {
+		key, ok := configKeyForFlag(flag.Name)
+		if !ok {
+			return "", nil
+		}
+		return key, posflag.FlagVal(flags, flag)
+	})
+	if err := k.Load(cliProvider, nil); err != nil {
+		return startupOptions{}, flags, fmt.Errorf("load command line: %w", err)
+	}
+
+	if err := applyCollectionValues(k, collectionValuesFromFlags(flags)); err != nil {
+		return startupOptions{}, flags, err
+	}
+
+	var cfg configs.Config
+	if err := k.Unmarshal("", &cfg); err != nil {
+		return startupOptions{}, flags, fmt.Errorf("decode merged configuration: %w", err)
+	}
+	if err := validateConfig(cfg); err != nil {
+		return startupOptions{}, flags, err
+	}
+
+	options.Config = cfg
+	return options, flags, nil
+}
+
+func normalizeLegacyArgs(flags *pflag.FlagSet, args []string) []string {
+	normalized := append([]string(nil), args...)
+	expectValue := false
+	stopParsing := false
+	for i, arg := range normalized {
+		if stopParsing {
+			continue
+		}
+		if expectValue {
+			expectValue = false
+			continue
+		}
+		if arg == "--" {
+			stopParsing = true
+			continue
+		}
+		if arg == "-h" {
+			normalized[i] = "--help"
+			continue
+		}
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+		name := strings.TrimLeft(arg, "-")
+		hasValue := false
+		if index := strings.IndexByte(name, '='); index >= 0 {
+			name = name[:index]
+			hasValue = true
+		}
+		flag := flags.Lookup(name)
+		if flag != nil && !strings.HasPrefix(arg, "--") {
+			normalized[i] = "-" + arg
+		}
+		if flag != nil && flag.NoOptDefVal == "" && !hasValue {
+			expectValue = true
+		}
+	}
+	return normalized
+}
+
+func lookupEnvironment(environ []string, name string) (string, bool) {
+	prefix := name + "="
+	for _, item := range environ {
+		if strings.HasPrefix(item, prefix) {
+			return strings.TrimPrefix(item, prefix), true
+		}
+	}
+	return "", false
+}
+
+func rejectUnknownKeys(k *koanf.Koanf, allowed map[string]struct{}) error {
+	for _, key := range k.Keys() {
+		if _, ok := allowed[key]; !ok {
+			return fmt.Errorf("unknown configuration key %q", key)
+		}
+	}
+	return nil
+}
+
+func normalizeConfigAliases(k *koanf.Koanf) error {
+	for _, alias := range configAliases {
+		if k.Exists(alias.LegacyKey) {
+			if err := k.Set(alias.CanonicalKey, k.Get(alias.LegacyKey)); err != nil {
+				return err
+			}
+		}
+		k.Delete(alias.LegacyKey)
+	}
+	return nil
+}
+
+func isCollectionEnvKey(key string) bool {
+	for _, spec := range collectionSpecs {
+		if string(spec.Key) == key {
+			return true
+		}
+	}
+	return false
+}
+
+func configKeyForFlag(name string) (string, bool) {
+	for _, alias := range configAliases {
+		if name == alias.LegacyFlag || name == alias.CanonicalFlag {
+			return alias.CanonicalKey, true
+		}
+	}
+	switch name {
+	case "config", "version", "auth-info", "trust-device", "untrust-device":
+		return "", false
+	case "server":
+		return "server_address", true
+	case "port":
+		return "server_port", true
+	}
+	for _, spec := range collectionSpecs {
+		if spec.FlagName == name {
+			return "", false
+		}
+	}
+	return strings.ReplaceAll(name, "-", "_"), true
+}
+
+type collectionValue struct {
+	Value string
+	Set   bool
+}
+
+type collectionValues map[collectionKey]collectionValue
+
+func collectionValuesFromEnvironment(environ []string) collectionValues {
+	values := make(collectionValues, len(collectionSpecs))
+	for _, spec := range collectionSpecs {
+		value, set := lookupEnvironment(environ, envPrefix+spec.EnvName)
+		values[spec.Key] = collectionValue{Value: value, Set: set}
+	}
+	return values
+}
+
+func collectionValuesFromFlags(flags *pflag.FlagSet) collectionValues {
+	values := make(collectionValues, len(collectionSpecs))
+	for _, spec := range collectionSpecs {
+		flag := flags.Lookup(spec.FlagName)
+		values[spec.Key] = collectionValue{Value: flag.Value.String(), Set: flag.Changed}
+	}
+	return values
+}
+
+func applyCollectionValues(k *koanf.Koanf, values collectionValues) error {
+	tcp := values[collectionTCPPortForwarding]
+	udp := values[collectionUDPPortForwarding]
+	if tcp.Set || udp.Set {
+		var entries []configs.SinglePortForwarding
+		for _, item := range []struct {
+			value   collectionValue
+			network string
+		}{
+			{tcp, "tcp"},
+			{udp, "udp"},
+		} {
+			parsed, err := parsePortForwarding(item.network, item.value.Value)
+			if err != nil {
+				return err
+			}
+			entries = append(entries, parsed...)
+		}
+		if err := k.Set("port_forwarding", entries); err != nil {
+			return err
+		}
+	}
+
+	customDNS := values[collectionCustomDNS]
+	if customDNS.Set {
+		entries, err := parseCustomDNS(customDNS.Value)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
-	} else {
-		if tcpPortForwarding != "" {
-			forwardingStringList := strings.Split(tcpPortForwarding, ",")
-			for _, forwardingString := range forwardingStringList {
-				addressStringList := strings.Split(forwardingString, "-")
-				if len(addressStringList) != 2 {
-					fmt.Println("FDU Connect: wrong tcp port forwarding format")
-					os.Exit(1)
-				}
-
-				conf.PortForwardingList = append(conf.PortForwardingList, configs.SinglePortForwarding{
-					NetworkType:   "tcp",
-					BindAddress:   addressStringList[0],
-					RemoteAddress: addressStringList[1],
-				})
-			}
-		}
-
-		if udpPortForwarding != "" {
-			forwardingStringList := strings.Split(udpPortForwarding, ",")
-			for _, forwardingString := range forwardingStringList {
-				addressStringList := strings.Split(forwardingString, "-")
-				if len(addressStringList) != 2 {
-					fmt.Println("FDU Connect: wrong udp port forwarding format")
-					os.Exit(1)
-				}
-
-				conf.PortForwardingList = append(conf.PortForwardingList, configs.SinglePortForwarding{
-					NetworkType:   "udp",
-					BindAddress:   addressStringList[0],
-					RemoteAddress: addressStringList[1],
-				})
-			}
-		}
-
-		if customDns != "" {
-			dnsList := strings.Split(customDns, ",")
-			for _, dnsString := range dnsList {
-				dnsStringSplit := strings.Split(dnsString, ":")
-				if len(dnsStringSplit) != 2 {
-					fmt.Println("FDU Connect: wrong custom dns format")
-					os.Exit(1)
-				}
-
-				conf.CustomDNSList = append(conf.CustomDNSList, configs.SingleCustomDNS{
-					HostName: dnsStringSplit[0],
-					IP:       dnsStringSplit[1],
-				})
-			}
-		}
-
-		if customProxyDomain != "" {
-			domainList := strings.Split(customProxyDomain, ",")
-			for _, domain := range domainList {
-				var domainRegex = regexp.MustCompile(`^[a-zA-Z\d-]+(\.[a-zA-Z\d-]+)*\.[a-zA-Z]{2,}$`)
-				if !domainRegex.MatchString(domain) {
-					fmt.Printf("FDU Connect: %s is not a valid domain\n", domain)
-					os.Exit(1)
-				}
-				conf.CustomProxyDomain = append(conf.CustomProxyDomain, domain)
-			}
+		if err := k.Set("custom_dns", entries); err != nil {
+			return err
 		}
 	}
 
-	if conf.ServerAddress == "" || ((conf.Username == "" || conf.Password == "") && conf.TwfID == "") {
-		fmt.Println("FDU Connect")
-		fmt.Println("Please see: https://github.com/akirasalvare/fdu-connect")
-		fmt.Printf("\nUsage: %s -username <username> -password <password>\n", os.Args[0])
-		fmt.Println("\nFull usage:")
-		flag.PrintDefaults()
-
-		os.Exit(1)
+	proxyDomains := values[collectionProxyDomain]
+	if proxyDomains.Set {
+		entries := parseProxyDomains(proxyDomains.Value)
+		if err := k.Set("custom_proxy_domain", entries); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func parsePortForwarding(network, value string) ([]configs.SinglePortForwarding, error) {
+	if value == "" {
+		return nil, nil
+	}
+	var entries []configs.SinglePortForwarding
+	for _, forwarding := range strings.Split(value, ",") {
+		addresses := strings.SplitN(forwarding, "-", 2)
+		if len(addresses) != 2 || addresses[0] == "" || addresses[1] == "" {
+			return nil, fmt.Errorf("FDU Connect: wrong %s port forwarding format", network)
+		}
+		entries = append(entries, configs.SinglePortForwarding{
+			NetworkType:   network,
+			BindAddress:   addresses[0],
+			RemoteAddress: addresses[1],
+		})
+	}
+	return entries, nil
+}
+
+func parseCustomDNS(value string) ([]configs.SingleCustomDNS, error) {
+	if value == "" {
+		return nil, nil
+	}
+	var entries []configs.SingleCustomDNS
+	for _, entry := range strings.Split(value, ",") {
+		parts := strings.SplitN(entry, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, errors.New("FDU Connect: wrong custom dns format")
+		}
+		entries = append(entries, configs.SingleCustomDNS{HostName: parts[0], IP: parts[1]})
+	}
+	return entries, nil
+}
+
+func parseProxyDomains(value string) []string {
+	if value == "" {
+		return nil
+	}
+	return strings.Split(value, ",")
+}
+
+func validateConfig(cfg configs.Config) error {
+	if cfg.Protocol != "easyconnect" && cfg.Protocol != "atrust" {
+		return fmt.Errorf("unsupported VPN protocol: %s", cfg.Protocol)
+	}
+	if cfg.ServerPort < 1 || cfg.ServerPort > 65535 {
+		return fmt.Errorf("invalid VPN server port: %d", cfg.ServerPort)
+	}
+	for _, forwarding := range cfg.PortForwardingList {
+		if forwarding.NetworkType == "" {
+			return errors.New("FDU Connect: network type is not set")
+		}
+		if forwarding.BindAddress == "" {
+			return errors.New("FDU Connect: bind address is not set")
+		}
+		if forwarding.RemoteAddress == "" {
+			return errors.New("FDU Connect: remote address is not set")
+		}
+	}
+	for _, entry := range cfg.CustomDNSList {
+		if entry.HostName == "" {
+			return errors.New("FDU Connect: host name is not set")
+		}
+		if entry.IP == "" {
+			return errors.New("FDU Connect: IP is not set")
+		}
+	}
+	for _, domain := range cfg.CustomProxyDomain {
+		if !domainPattern.MatchString(domain) {
+			return fmt.Errorf("FDU Connect: %s is not a valid domain", domain)
+		}
+	}
+	return nil
+}
+
+func validateConnectConfig(cfg configs.Config) error {
+	if cfg.Protocol == "easyconnect" {
+		if (cfg.Username == "" || cfg.Password == "") && cfg.TwfID == "" {
+			return errors.New("FDU Connect: missing required arguments")
+		}
+		return nil
+	}
+
+	var primaryCredentialsPresent bool
+	switch cfg.AuthType {
+	case "auth/psw":
+		primaryCredentialsPresent = cfg.Username != "" && cfg.Password != ""
+	case "auth/smsCheckCode":
+		primaryCredentialsPresent = cfg.Phone != ""
+	default:
+		return nil
+	}
+	debugCredentialsPresent := cfg.SID != "" && cfg.DeviceID != "" && cfg.ResourceFile != ""
+	if !primaryCredentialsPresent && !debugCredentialsPresent {
+		return errors.New("FDU Connect: missing required arguments")
+	}
+	return nil
+}
+
+func initialize(args []string) int {
+	options, flags, err := loadStartupOptions(args, os.Environ)
+	if err != nil {
+		if errors.Is(err, pflag.ErrHelp) {
+			return 0
+		}
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	if options.ShowVersion {
+		fmt.Printf("FDU Connect %s\n", fduConnectVersionString())
+		return 0
+	}
+
+	conf = options.Config
+	if options.AuthInfo {
+		if conf.Protocol != "atrust" {
+			fmt.Fprintln(os.Stderr, "Auth info is only supported by the atrust protocol")
+			return 1
+		}
+		log.SetOutput(io.Discard)
+		info, err := atrust.GetAuthInfoList(conf.ServerAddress, conf.ServerPort, conf.BindInterface, conf.AutoDetectInterface, conf.LocalDNSServer, conf.DebugTLSLogFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Get auth info list error:", err)
+			return 1
+		}
+		jsonInfo, err := json.Marshal(info)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error marshaling auth info:", err)
+			return 1
+		}
+		fmt.Println(string(jsonInfo))
+		return 0
+	}
+
+	if options.TrustDevice || options.UntrustDevice {
+		if conf.Protocol != "atrust" {
+			fmt.Fprintln(os.Stderr, "Trust/Untrust device is only supported by the atrust protocol")
+			return 1
+		}
+		if conf.ClientDataFile == "" {
+			fmt.Fprintln(os.Stderr, "Client data file is required for trust/untrust device")
+			return 1
+		}
+		clientData, err := os.ReadFile(conf.ClientDataFile)
+		if err != nil {
+			log.Printf("Read client data file error: %s", err)
+			return 1
+		}
+		if err := atrust.SetTrusted(conf.ServerAddress, conf.ServerPort, clientData, options.TrustDevice, conf.BindInterface, conf.AutoDetectInterface, conf.LocalDNSServer, conf.DebugTLSLogFile); err != nil {
+			fmt.Fprintln(os.Stderr, "Trust/Untrust device error:", err)
+			return 1
+		}
+		if options.TrustDevice {
+			log.Println("Device trusted successfully")
+		} else {
+			log.Println("Device untrusted successfully")
+		}
+		return 0
+	}
+
+	if err := validateConnectConfig(conf); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "Please see: https://github.com/akirasalvare/fdu-connect")
+		fmt.Fprintln(os.Stderr, "\nUsage:")
+		flags.PrintDefaults()
+		return 1
+	}
+	return -1
 }

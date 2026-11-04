@@ -1,17 +1,16 @@
-package client
+package easyconnect
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/akirasalvare/fdu-connect/log"
-	"github.com/pquerna/otp/totp"
-	utls "github.com/refraction-networking/utls"
 	"io"
 	"math/big"
 	"net"
@@ -23,14 +22,20 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/akirasalvare/fdu-connect/client/authchallenge"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/pquerna/otp/totp"
+	utls "github.com/refraction-networking/utls"
 )
 
 var errSMSRequired = errors.New("SMS code required")
 var errTOTPRequired = errors.New("TOTP required")
 var errCertRequired = errors.New("cert required")
+var errNotFound = errors.New("not found")
 
-func (c *EasyConnectClient) requestTwfID() error {
-	err := c.loginAuthAndPsw()
+func (c *Client) requestTwfID(graphCodeFile string) error {
+	err := c.loginAuthAndPsw(graphCodeFile)
 	if err != nil {
 		if errors.Is(err, errSMSRequired) {
 			err = c.loginSMS()
@@ -55,12 +60,16 @@ func (c *EasyConnectClient) requestTwfID() error {
 	return nil
 }
 
-func (c *EasyConnectClient) loginAuthAndPsw() error {
+func (c *Client) loginAuthAndPsw(graphCodeFile string) error {
 	// First we request the TwfID from server
 	addr := "https://" + c.server + "/por/login_auth.csp?apiversion=1"
 	log.Printf("Request: %s", addr)
 
-	resp, err := c.httpClient.Get(addr)
+	req, err := http.NewRequestWithContext(c.lifecycleCtx, http.MethodGet, addr, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		debug.PrintStack()
 		return err
@@ -78,8 +87,10 @@ func (c *EasyConnectClient) loginAuthAndPsw() error {
 
 	log.DebugPrintln("Response:", buf.String())
 
-	vpnVersion := string(regexp.MustCompile(`<VPNVERSION>(.*)</VPNVERSION>`).FindSubmatch(buf.Bytes())[1])
-	log.Printf("VPN server version: %s", vpnVersion)
+	vpnMatch := regexp.MustCompile(`<VPNVERSION>(.*)</VPNVERSION>`).FindSubmatch(buf.Bytes())
+	if vpnMatch != nil {
+		log.Printf("VPN server version: %s", string(vpnMatch[1]))
+	}
 
 	c.twfID = string(regexp.MustCompile(`<TwfID>(.*)</TwfID>`).FindSubmatch(buf.Bytes())[1])
 	log.Printf("TWFID: %s", c.twfID)
@@ -120,18 +131,63 @@ func (c *EasyConnectClient) loginAuthAndPsw() error {
 	}
 	encryptedPasswordHex := hex.EncodeToString(encryptedPassword)
 
+	rndImgMatch := regexp.MustCompile(`<RndImg>(.*)</RndImg>`).FindSubmatch(buf.Bytes())[1]
+	rndImg := "0"
+	if rndImgMatch != nil {
+		rndImg = string(rndImgMatch)
+	}
+
+	randCode := ""
+	if rndImg == "1" {
+		addr = "https://" + c.server + "/por/rand_code.csp?apiversion=1"
+		log.Printf("Request: %s", addr)
+		req, err := http.NewRequestWithContext(c.lifecycleCtx, http.MethodGet, addr, nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Cookie", "TWFID="+c.twfID)
+		req.Header.Set("User-Agent", "EasyConnect_windows")
+
+		resp, err = c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		captchaImage, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return readErr
+		}
+
+		challenge := authchallenge.TextCaptchaChallenge{
+			Image:      captchaImage,
+			OutputPath: graphCodeFile,
+			Message:    "Please enter rand code:",
+		}
+		captchaResponse, err := c.challengeHandler.HandleTextCaptcha(challenge)
+		if err != nil {
+			return fmt.Errorf("complete EasyConnect captcha challenge: %w", err)
+		}
+		if err := challenge.Validate(captchaResponse); err != nil {
+			return fmt.Errorf("invalid EasyConnect captcha response: %w", err)
+		}
+		randCode = captchaResponse.Code
+	}
+
 	addr = "https://" + c.server + "/por/login_psw.csp?anti_replay=1&encrypt=1&type=cs"
 	log.Printf("Request: %s", addr)
 
 	form := url.Values{
-		"svpn_rand_code":    {""},
+		"svpn_rand_code":    {randCode},
 		"mitm":              {""},
 		"svpn_req_randcode": {csrfCode},
 		"svpn_name":         {c.username},
 		"svpn_password":     {encryptedPasswordHex},
 	}
 
-	req, err := http.NewRequest("POST", addr, strings.NewReader(form.Encode()))
+	req, err = http.NewRequestWithContext(c.lifecycleCtx, http.MethodPost, addr, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Cookie", "TWFID="+c.twfID)
 	req.Header.Set("User-Agent", "EasyConnect_windows")
 
@@ -188,10 +244,13 @@ func (c *EasyConnectClient) loginAuthAndPsw() error {
 	return nil
 }
 
-func (c *EasyConnectClient) loginSMS() error {
+func (c *Client) loginSMS() error {
 	addr := "https://" + c.server + "/por/login_sms.csp?apiversion=1"
-	log.Printf("SMS request: " + addr)
-	req, err := http.NewRequest("POST", addr, nil)
+	log.Printf("SMS request: %s", addr)
+	req, err := http.NewRequestWithContext(c.lifecycleCtx, http.MethodPost, addr, nil)
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Cookie", "TWFID="+c.twfID)
 	req.Header.Set("User-Agent", "EasyConnect_windows")
 
@@ -210,26 +269,31 @@ func (c *EasyConnectClient) loginSMS() error {
 		_ = Body.Close()
 	}(resp.Body)
 
-	if !strings.Contains(buf.String(), "验证码已发送到您的手机") && !strings.Contains(buf.String(), "<USER_PHONE>") {
+	log.DebugPrintf("SMS request response: %s", buf.String())
+
+	if !strings.Contains(buf.String(), "验证码已发送到您的手机") && !strings.Contains(buf.String(), "请输入验证码：") && !strings.Contains(buf.String(), "<USER_PHONE>") {
 		return errors.New("unexpected SMS response: " + buf.String())
 	}
 
 	log.Printf("SMS code is sent or still valid")
 
-	fmt.Print("Please enter your SMS code:")
-	smsCode := ""
-	_, err = fmt.Scan(&smsCode)
+	codeResponse, err := c.challengeHandler.HandleCodeChallenge(authchallenge.CodeChallenge{
+		Kind:    authchallenge.CodeSMS,
+		Message: "Please enter your SMS code:",
+	})
+	if err != nil {
+		return fmt.Errorf("complete EasyConnect SMS challenge: %w", err)
+	}
+	addr = "https://" + c.server + "/por/login_sms1.csp?apiversion=1"
+	log.Printf("SMS Request: %s", addr)
+	form := url.Values{
+		"svpn_inputsms": {codeResponse.Code},
+	}
+
+	req, err = http.NewRequestWithContext(c.lifecycleCtx, http.MethodPost, addr, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
 	}
-
-	addr = "https://" + c.server + "/por/login_sms1.csp?apiversion=1"
-	log.Printf("SMS Request: " + addr)
-	form := url.Values{
-		"svpn_inputsms": {smsCode},
-	}
-
-	req, err = http.NewRequest("POST", addr, strings.NewReader(form.Encode()))
 	req.Header.Set("Cookie", "TWFID="+c.twfID)
 	req.Header.Set("User-Agent", "EasyConnect_windows")
 
@@ -238,6 +302,7 @@ func (c *EasyConnectClient) loginSMS() error {
 		return err
 	}
 
+	buf.Reset()
 	_, err = io.Copy(&buf, resp.Body)
 	if err != nil {
 		return err
@@ -246,26 +311,37 @@ func (c *EasyConnectClient) loginSMS() error {
 		_ = Body.Close()
 	}(resp.Body)
 
-	if !strings.Contains(buf.String(), "Auth sms suc") {
+	log.DebugPrintf("SMS verification response: %s", buf.String())
+
+	if !strings.Contains(buf.String(), "Auth sms suc") && !strings.Contains(buf.String(), "欢迎访问") {
 		debug.PrintStack()
 		return errors.New("SMS code verification failed: " + buf.String())
 	}
 
-	c.twfID = string(regexp.MustCompile(`<TwfID>(.*)</TwfID>`).FindSubmatch(buf.Bytes())[1])
+	twfIDMatch := regexp.MustCompile(`<TwfID>(.*)</TwfID>`).FindSubmatch(buf.Bytes())
+	if twfIDMatch != nil {
+		c.twfID = string(twfIDMatch[1])
+		log.Printf("Update TWFID: %s", c.twfID)
+	}
 	log.Print("SMS code verification success")
 
 	return nil
 }
 
-func (c *EasyConnectClient) loginTOTP() error {
+func (c *Client) loginTOTP() error {
 	var totpCode string
 	var err error
 	if c.totpSecret == "" {
-		fmt.Print("Please enter your TOTP code:")
-		_, err = fmt.Scan(&totpCode)
+		challenge := authchallenge.CodeChallenge{
+			Kind:    authchallenge.CodeTOTP,
+			Message: "Please enter your TOTP code:",
+		}
+		var response authchallenge.CodeResponse
+		response, err = c.challengeHandler.HandleCodeChallenge(challenge)
+		totpCode = response.Code
 	} else {
 		totpCode, err = totp.GenerateCode(c.totpSecret, time.Now())
-		fmt.Println("Generate TOTP code:", totpCode)
+		log.Println("Generated TOTP code")
 	}
 	if err != nil {
 		return err
@@ -276,7 +352,7 @@ func (c *EasyConnectClient) loginTOTP() error {
 	form := url.Values{
 		"svpn_inputtoken": {totpCode},
 	}
-	req, err := http.NewRequest("POST", addr, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(c.lifecycleCtx, http.MethodPost, addr, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
 	}
@@ -309,10 +385,10 @@ func (c *EasyConnectClient) loginTOTP() error {
 	return nil
 }
 
-func (c *EasyConnectClient) loginCert() error {
+func (c *Client) loginCert() error {
 	addr := "https://" + c.server + "/com/server.crt"
 	log.Printf("Get server cert: %s", addr)
-	req, err := http.NewRequest("POST", addr, nil)
+	req, err := http.NewRequestWithContext(c.lifecycleCtx, http.MethodPost, addr, nil)
 	if err != nil {
 		return err
 	}
@@ -340,18 +416,16 @@ func (c *EasyConnectClient) loginCert() error {
 		return errors.New("failed to parse server certificate")
 	}
 
-	c.httpClient.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-			Renegotiation:      tls.RenegotiateOnceAsClient,
-			Certificates:       []tls.Certificate{c.tlsCert},
-			RootCAs:            caCertPool,
-		},
-	}
+	c.setHTTPTransport(&tls.Config{
+		InsecureSkipVerify: true,
+		Renegotiation:      tls.RenegotiateOnceAsClient,
+		Certificates:       []tls.Certificate{c.tlsCert},
+		RootCAs:            caCertPool,
+	})
 
 	addr = "https://" + c.server + "/por/login_cert.csp?anti_replay=1&encrypt=1&type=cs"
 	log.Printf("Cert Request: %s", addr)
-	req, err = http.NewRequest("POST", addr, nil)
+	req, err = http.NewRequestWithContext(c.lifecycleCtx, http.MethodPost, addr, nil)
 	if err != nil {
 		return err
 	}
@@ -372,21 +446,38 @@ func (c *EasyConnectClient) loginCert() error {
 		_ = Body.Close()
 	}(resp.Body)
 
-	if !strings.Contains(buf.String(), "<Result>1</Result>") {
+	response := buf.String()
+	certSuccess := strings.Contains(response, "<Result>1</Result>") ||
+		strings.Contains(response, "Login successfully") ||
+		strings.Contains(response, "Auth cert suc")
+	if !certSuccess {
 		debug.PrintStack()
-		return errors.New("Cert verification failed: " + buf.String())
+		return errors.New("Cert verification failed: " + response)
 	}
 
-	log.Print("Cert verification success")
+	twfIDMatch := regexp.MustCompile(`<TwfID>(.*)</TwfID>`).FindSubmatch(buf.Bytes())
+	if twfIDMatch != nil {
+		c.twfID = string(twfIDMatch[1])
+		log.Printf("Update TWFID: %s", c.twfID)
+	}
+
+	if strings.Contains(response, "<pwpErrorCode>16</pwpErrorCode>") {
+		log.Print("Cert verification success (server returned pwpErrorCode=16, profile redirect ignored)")
+	} else {
+		log.Print("Cert verification success")
+	}
 
 	return nil
 }
 
-func (c *EasyConnectClient) requestConfig() (string, error) {
+func (c *Client) requestConfig() (string, error) {
 	addr := "https://" + c.server + "/por/conf.csp"
 	log.Printf("Request: %s", addr)
 
-	req, err := http.NewRequest("GET", addr, nil)
+	req, err := http.NewRequestWithContext(c.lifecycleCtx, http.MethodGet, addr, nil)
+	if err != nil {
+		return "", err
+	}
 	req.Header.Set("Cookie", "TWFID="+c.twfID)
 
 	resp, err := c.httpClient.Do(req)
@@ -406,11 +497,72 @@ func (c *EasyConnectClient) requestConfig() (string, error) {
 	return buf.String(), nil
 }
 
-func (c *EasyConnectClient) requestResources() (string, error) {
+// requestUpdateSession pings /por/update_session.csp to keep the server-side
+// session alive. The official EasyConnect client calls this periodically;
+// without it, sangfor servers with strict idle policies (e.g. HUST) close
+// the session, which the tunnel layer surfaces as a "broken pipe" →
+// "unexpected handshake reply" kick cascade.
+func (c *Client) requestUpdateSession(ctx context.Context) error {
+	u := url.URL{
+		Scheme: "https",
+		Host:   c.server,
+		Path:   "/por/update_session.csp",
+	}
+	q := url.Values{}
+	q.Set("twfid", c.twfID)
+	q.Set("apiversion", "1")
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Cookie", "TWFID="+c.twfID)
+	req.Header.Set("User-Agent", "EasyConnect_Linux_Ubuntu")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return errNotFound
+		}
+		return fmt.Errorf("update_session: unexpected status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// Successful body looks like:
+	//   <Auth><Message>success</Message><ErrorCode>1</ErrorCode><TwfID>...</TwfID></Auth>
+	var reply struct {
+		Message   string `xml:"Message"`
+		ErrorCode string `xml:"ErrorCode"`
+	}
+	if err := xml.Unmarshal(body, &reply); err != nil {
+		return fmt.Errorf("update_session: parse reply: %w", err)
+	}
+	if reply.Message != "success" || reply.ErrorCode != "1" {
+		return fmt.Errorf("update_session: unexpected reply message=%q error_code=%q", reply.Message, reply.ErrorCode)
+	}
+	return nil
+}
+
+func (c *Client) requestResources() (string, error) {
 	addr := "https://" + c.server + "/por/rclist.csp"
 	log.Printf("Request: %s", addr)
 
-	req, err := http.NewRequest("GET", addr, nil)
+	req, err := http.NewRequestWithContext(c.lifecycleCtx, http.MethodGet, addr, nil)
+	if err != nil {
+		return "", err
+	}
 	req.Header.Set("Cookie", "TWFID="+c.twfID)
 
 	resp, err := c.httpClient.Do(req)
@@ -430,15 +582,31 @@ func (c *EasyConnectClient) requestResources() (string, error) {
 	return buf.String(), nil
 }
 
-func (c *EasyConnectClient) requestToken() error {
-	dialConn, err := net.Dial("tcp", c.server)
+func (c *Client) requestToken() error {
+	ctx, cancel := c.rawRequestContext()
+	defer cancel()
+	dialConn, err := c.dialContext(ctx, "tcp", c.server)
+	if err != nil {
+		return err
+	}
 	defer func(dialConn net.Conn) {
 		_ = dialConn.Close()
 	}(dialConn)
-	conn := utls.UClient(dialConn, &utls.Config{InsecureSkipVerify: true}, utls.HelloGolang)
+	conn := utls.UClient(dialConn, &utls.Config{
+		InsecureSkipVerify: true,
+		KeyLogWriter:       c.tlsKeyLogWriter,
+	}, utls.HelloGolang)
 	defer func(conn *utls.UConn) {
 		_ = conn.Close()
 	}(conn)
+	clearDeadline, err := armConnectionContext(ctx, conn)
+	if err != nil {
+		return err
+	}
+	defer clearDeadline()
+	if err := conn.HandshakeContext(ctx); err != nil {
+		return err
+	}
 
 	// When establish an HTTPS connection to server and send a valid request with TWFID to it
 	// The **TLS ServerHello SessionId** is the first part of token
@@ -460,7 +628,7 @@ func (c *EasyConnectClient) requestToken() error {
 	buf := make([]byte, 8)
 	n, err := conn.Read(buf)
 	if n == 0 || err != nil {
-		return errors.New("ECAgent request invalid: error " + err.Error() + "\n" + string(buf[:]))
+		return fmt.Errorf("ECAgent request invalid: read %d bytes: %w", n, err)
 	}
 
 	c.token = (*[48]byte)([]byte(sessionID[:31] + "\x00" + c.twfID))
@@ -470,11 +638,24 @@ func (c *EasyConnectClient) requestToken() error {
 	return nil
 }
 
-func (c *EasyConnectClient) requestIP() error {
-	conn, err := c.tlsConn()
+func (c *Client) requestIP() error {
+	ctx, cancel := c.rawRequestContext()
+	defer cancel()
+	conn, err := c.tlsConn(ctx, "L3IP")
 	if err != nil {
 		return err
 	}
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			_ = conn.Close()
+		}
+	}()
+	clearDeadline, err := armConnectionContext(ctx, conn)
+	if err != nil {
+		return err
+	}
+	defer clearDeadline()
 
 	// Request IP Packet
 	message := []byte{0x00, 0x00, 0x00, 0x00}
@@ -504,16 +685,45 @@ func (c *EasyConnectClient) requestIP() error {
 
 	c.ip = reply[4:8]
 	c.ipReverse = []byte{c.ip[3], c.ip[2], c.ip[1], c.ip[0]}
+	if c.underlayDialer != nil {
+		c.underlayDialer.ExcludeIP(c.ip)
+	}
 
 	log.Printf("Client IP: %s", c.ip.String())
 
 	// Request IP conn CAN NOT be closed, otherwise tx/rx handshake will fail
-	go func() {
-		for {
-			time.Sleep(time.Second * 10)
-			runtime.KeepAlive(conn)
-		}
-	}()
+	c.setRequestIPConn(conn)
+	succeeded = true
 
 	return nil
+}
+
+func (c *Client) setRequestIPConn(conn net.Conn) {
+	c.requestIPConnMu.Lock()
+	if c.requestIPConn != nil {
+		_ = c.requestIPConn.Close()
+	}
+	c.requestIPConn = conn
+	c.requestIPConnMu.Unlock()
+
+	c.requestIPKeepAlive.Do(func() {
+		go c.requestIPKeepAliveLoop()
+	})
+}
+
+func (c *Client) requestIPKeepAliveLoop() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.lifecycleCtx.Done():
+			return
+		case <-ticker.C:
+			c.requestIPConnMu.Lock()
+			conn := c.requestIPConn
+			c.requestIPConnMu.Unlock()
+			runtime.KeepAlive(conn)
+		}
+	}
 }

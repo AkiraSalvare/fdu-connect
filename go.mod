@@ -1,54 +1,66 @@
 module github.com/akirasalvare/fdu-connect
 
-go 1.24.1
+go 1.25.6
 
 replace inet.af/netaddr => github.com/inetaf/netaddr v0.0.0-20230525184311-b8eac61e914a
 
-require github.com/refraction-networking/utls v1.6.7
-
 require (
-	github.com/BurntSushi/toml v1.5.0
-	github.com/beevik/etree v1.5.0
-	github.com/cloverstd/tcping v0.1.1
-	github.com/cxz66666/sing-tun v0.0.0-20231028191617-2867d9374292
-	github.com/miekg/dns v1.1.63
+	github.com/beevik/etree v1.6.0
+	github.com/containers/winquit v1.1.0
+	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
+	github.com/knadh/koanf/providers/env/v2 v2.0.1
+	github.com/knadh/koanf/providers/file v1.2.1
+	github.com/knadh/koanf/providers/posflag v1.0.2
+	github.com/knadh/koanf/providers/structs v1.0.1
+	github.com/knadh/koanf/v2 v2.3.6
+	github.com/miekg/dns v1.1.72
+	github.com/mythologyli/sing-tun v0.0.0-20260201144630-c04d9db95dc7
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pquerna/otp v1.4.0
+	github.com/pquerna/otp v1.5.0
+	github.com/refraction-networking/utls v1.8.2
+	github.com/sagernet/sing v0.7.18
 	github.com/shadowsocks/go-shadowsocks2 v0.1.5
-	github.com/shirou/gopsutil/v4 v4.25.2
-	github.com/things-go/go-socks5 v0.0.5
-	golang.org/x/crypto v0.36.0
-	golang.org/x/net v0.37.0
-	golang.org/x/sys v0.31.0
-	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	golang.zx2c4.com/wireguard/windows v0.5.3
-	gvisor.dev/gvisor v0.0.0-20250317184159-a24f13b091dc
+	github.com/shirou/gopsutil/v4 v4.26.4
+	github.com/spf13/pflag v1.0.10
+	github.com/things-go/go-socks5 v0.1.1
+	golang.org/x/crypto v0.52.0
+	golang.org/x/net v0.55.0
+	golang.org/x/sys v0.45.0
+	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446
+	golang.zx2c4.com/wireguard/windows v1.0.1
+	gvisor.dev/gvisor v0.0.0-20260129214308-cb856800aa1c
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
 )
 
 require (
-	github.com/andybalholm/brotli v1.1.1 // indirect
-	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
-	github.com/cloudflare/circl v1.5.0 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/boombuler/barcode v1.1.0 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
+	github.com/fatih/structs v1.1.0 // indirect
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/klauspost/compress v1.17.11 // indirect
-	github.com/metacubex/gvisor v0.0.0-20231001104248-0f672c3fb8d8 // indirect
-	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
+	github.com/klauspost/compress v1.18.6 // indirect
+	github.com/knadh/koanf/maps v0.1.2 // indirect
+	github.com/metacubex/gvisor v0.0.0-20251227095601-261ec1326fe8 // indirect
+	github.com/mitchellh/copystructure v1.2.0 // indirect
+	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
+	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/riobard/go-bloom v0.0.0-20200614022211-cdc8013cb5b3 // indirect
 	github.com/sagernet/go-tun2socks v1.16.12-0.20220818015926-16cb67876a61 // indirect
 	github.com/sagernet/netlink v0.0.0-20240916134442-83396419aa8b // indirect
-	github.com/sagernet/sing v0.4.3 // indirect
-	github.com/scjalliance/comshim v0.0.0-20240712181150-e070933cb68e // indirect
-	github.com/vishvananda/netns v0.0.4 // indirect
+	github.com/scjalliance/comshim v0.0.0-20251021001035-b69f3cdad6f3 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
-	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/time v0.7.0 // indirect
-	golang.org/x/tools v0.26.0 // indirect
+	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a // indirect
+	golang.org/x/mod v0.36.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )

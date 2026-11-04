@@ -6,81 +6,222 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
+	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/akirasalvare/fdu-connect/client"
+	atrustclient "github.com/akirasalvare/fdu-connect/client/atrust"
+	"github.com/akirasalvare/fdu-connect/client/atrust/auth"
+	easyconnectclient "github.com/akirasalvare/fdu-connect/client/easyconnect"
 	"github.com/akirasalvare/fdu-connect/configs"
 	"github.com/akirasalvare/fdu-connect/dial"
 	"github.com/akirasalvare/fdu-connect/internal/hook_func"
+	"github.com/akirasalvare/fdu-connect/internal/keylog"
 	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/akirasalvare/fdu-connect/resolve"
 	"github.com/akirasalvare/fdu-connect/service"
 	"github.com/akirasalvare/fdu-connect/stack"
 	"github.com/akirasalvare/fdu-connect/stack/gvisor"
+	"github.com/akirasalvare/fdu-connect/stack/tcptunnel"
 	"github.com/akirasalvare/fdu-connect/stack/tun"
+	"github.com/akirasalvare/fdu-connect/underlay"
+	"github.com/containers/winquit/pkg/winquit"
 	"golang.org/x/crypto/pkcs12"
 	"inet.af/netaddr"
 )
 
 var conf configs.Config
 
-const fduConnectVersion = "0.9.0"
-
 func main() {
+	if exitCode := initialize(os.Args[1:]); exitCode >= 0 {
+		os.Exit(exitCode)
+	}
+
 	log.Init()
 
-	log.Println("Start FDU Connect v" + fduConnectVersion)
+	log.Println("Start FDU Connect " + fduConnectVersionString())
 	if conf.DebugDump {
 		log.EnableDebug()
 	}
-
 	if errs := hook_func.ExecInitialFunc(context.Background(), conf); errs != nil {
 		for _, err := range errs {
 			log.Printf("Initial FDU-Connect failed: %s", err)
 		}
 		os.Exit(1)
 	}
+	underlayDialer, underlayErr := underlay.New(underlay.Options{
+		InterfaceName:  conf.BindInterface,
+		AutoDetect:     conf.AutoDetectInterface,
+		DebugPCAPFile:  conf.DebugPCAPFile,
+		LocalDNSServer: conf.LocalDNSServer,
+	})
+	if underlayErr != nil {
+		log.Fatalf("Create underlay dialer: %v", underlayErr)
+	}
+	tlsKeyLogWriter, tlsKeyLogErr := keylog.Open(conf.DebugTLSLogFile)
+	if tlsKeyLogErr != nil {
+		_ = underlayDialer.Close()
+		log.Fatalf("Create TLS key log: %v", tlsKeyLogErr)
+	}
+	if conf.DebugPCAPFile != "" {
+		log.Printf("VPN underlay PCAP capture enabled: %s", conf.DebugPCAPFile)
+	}
+	if conf.DebugTLSLogFile != "" {
+		log.Printf("TLS key logging enabled: %s", conf.DebugTLSLogFile)
+	}
+	var vpnClient client.Client
+	switch conf.Protocol {
+	case "easyconnect":
+		tlsCert := tls.Certificate{}
+		if conf.CertFile != "" {
+			p12Data, err := os.ReadFile(conf.CertFile)
+			if err != nil {
+				log.Fatalf("Read certificate file error: %s", err)
+			}
 
-	tlsCert := tls.Certificate{}
-	if conf.CertFile != "" {
-		p12Data, err := os.ReadFile(conf.CertFile)
-		if err != nil {
-			log.Fatalf("Read certificate file error: %s", err)
+			key, cert, err := pkcs12.Decode(p12Data, conf.CertPassword)
+			if err != nil {
+				log.Fatalf("Decode certificate file error: %s", err)
+			}
+
+			tlsCert = tls.Certificate{
+				Certificate: [][]byte{cert.Raw},
+				PrivateKey:  key.(crypto.PrivateKey),
+				Leaf:        cert,
+			}
 		}
 
-		key, cert, err := pkcs12.Decode(p12Data, conf.CertPassword)
+		vpnClient = easyconnectclient.NewClient(easyconnectclient.Options{
+			Server: net.JoinHostPort(conf.ServerAddress, strconv.Itoa(conf.ServerPort)),
+			Auth: easyconnectclient.AuthOptions{
+				Username:      conf.Username,
+				Password:      conf.Password,
+				TOTPSecret:    conf.TOTPSecret,
+				Certificate:   tlsCert,
+				GraphCodeFile: conf.GraphCodeFile,
+			},
+			SessionID:     conf.TwfID,
+			TestMultiLine: !conf.DisableMultiLine,
+			Resources: easyconnectclient.ResourceOptions{
+				Fetch:          !conf.DisableServerConfig,
+				IncludeDomains: !conf.SkipDomainResource,
+			},
+			UnderlayDialer:  underlayDialer,
+			TLSKeyLogWriter: tlsKeyLogWriter,
+		})
+
+		log.Printf("VPN protocol: %s", conf.Protocol)
+		err := vpnClient.(*easyconnectclient.Client).Setup()
 		if err != nil {
-			log.Fatalf("Decode certificate file error: %s", err)
+			vpnClient.(*easyconnectclient.Client).Close()
+			_ = underlayDialer.Close()
+			if tlsKeyLogWriter != nil {
+				_ = tlsKeyLogWriter.Close()
+			}
+			log.Fatalf("VPN client setup error: %s", err)
+		}
+		if vpnClient.CanUseTCPTunnel() {
+			conf.TCPTunnelMode = true
+		}
+	case "atrust":
+		var err error
+		var resourceData []byte
+
+		if conf.ResourceFile != "" {
+			resourceData, err = os.ReadFile(conf.ResourceFile)
+			if err != nil {
+				log.Fatalf("Read resource file error: %s", err)
+			}
 		}
 
-		tlsCert = tls.Certificate{
-			Certificate: [][]byte{cert.Raw},
-			PrivateKey:  key.(crypto.PrivateKey),
-			Leaf:        cert,
+		var clientData []byte
+		if conf.ClientDataFile != "" {
+			clientData, err = os.ReadFile(conf.ClientDataFile)
+			if err != nil {
+				log.Printf("Read client data file error: %s", err)
+				log.Println("Will create a new client data file if log in successfully")
+			}
+			log.Printf("Client data will be saved to %s", conf.ClientDataFile)
+		}
+
+		var loginMethod auth.LoginMethod
+		if conf.SID == "" || conf.DeviceID == "" || resourceData == nil {
+			loginMethod, err = auth.NewLoginMethod(auth.LoginMethodOptions{
+				AuthType:      conf.AuthType,
+				Username:      conf.Username,
+				Password:      conf.Password,
+				Phone:         conf.Phone,
+				Domain:        conf.LoginDomain,
+				GraphCodeFile: conf.GraphCodeFile,
+				CASTicket:     conf.CasTicket,
+				OAuth2Code:    conf.OAuth2Code,
+			})
+			if err != nil {
+				log.Fatalf("Configure aTrust login: %v", err)
+			}
+		}
+
+		vpnClient = atrustclient.NewClient(atrustclient.ClientOptions{
+			Session: atrustclient.SessionOptions{
+				Username:     conf.Username,
+				SID:          conf.SID,
+				DeviceID:     conf.DeviceID,
+				MACAddresses: conf.MACAddresses,
+				SignKey:      conf.SignKey,
+			},
+			UnderlayDialer:  underlayDialer,
+			TLSKeyLogWriter: tlsKeyLogWriter,
+		})
+
+		var saveClientDataFunc func(data []byte) error
+		if conf.ClientDataFile != "" {
+			saveClientDataFunc = func(data []byte) error {
+				return os.WriteFile(conf.ClientDataFile, data, 0600)
+			}
+		}
+
+		log.Printf("VPN protocol: %s", conf.Protocol)
+		clientData, err = vpnClient.(*atrustclient.Client).Setup(atrustclient.SetupOptions{
+			ServerAddress:            conf.ServerAddress,
+			ServerPort:               conf.ServerPort,
+			LoginMethod:              loginMethod,
+			TOTPSecret:               conf.TOTPSecret,
+			ClientData:               clientData,
+			ResourceData:             resourceData,
+			BestNodesRefreshInterval: time.Duration(conf.UpdateBestNodesInterval) * time.Second,
+			SessionRefreshInterval:   time.Duration(conf.SessionRefreshInterval) * time.Second,
+			SaveClientData:           saveClientDataFunc,
+		})
+		if err != nil {
+			vpnClient.(*atrustclient.Client).Close()
+			_ = underlayDialer.Close()
+			if tlsKeyLogWriter != nil {
+				_ = tlsKeyLogWriter.Close()
+			}
+			log.Fatalf("VPN client setup error: %s", err)
 		}
 	}
 
-	vpnClient := client.NewEasyConnectClient(
-		conf.ServerAddress+":"+fmt.Sprintf("%d", conf.ServerPort),
-		conf.Username,
-		conf.Password,
-		conf.TOTPSecret,
-		tlsCert,
-		conf.TwfID,
-		!conf.DisableMultiLine,
-		!conf.DisableServerConfig,
-		!conf.SkipDomainResource,
-	)
-	err := vpnClient.Setup()
-	if err != nil {
-		log.Fatalf("EasyConnect client setup error: %s", err)
+	log.Printf("VPN client started")
+	if closer, ok := vpnClient.(interface{ Close() }); ok {
+		hook_func.RegisterTerminalFunc("CloseVPNClient", func(ctx context.Context) error {
+			closer.Close()
+			return nil
+		})
 	}
-
-	log.Printf("EasyConnect client started")
+	hook_func.RegisterTerminalFunc("CloseUnderlayDialer", func(ctx context.Context) error {
+		return underlayDialer.Close()
+	})
+	if tlsKeyLogWriter != nil {
+		hook_func.RegisterTerminalFunc("CloseTLSKeyLog", func(ctx context.Context) error {
+			return tlsKeyLogWriter.Close()
+		})
+	}
 
 	ipResources, err := vpnClient.IPResources()
 	if err != nil && !conf.DisableServerConfig {
@@ -102,24 +243,22 @@ func main() {
 		log.Println("No DNS resource")
 	}
 
-	if !conf.DisableFDUConfig {
-		if domainResources != nil {
-			domainResources["fudan.edu.cn"] = client.DomainResource{
+	if conf.Protocol == "easyconnect" {
+		if !conf.DisableFDUConfig {
+			if domainResources == nil {
+				domainResources = make(client.DomainResources)
+			}
+
+			domainResources["fudan.edu.cn"] = []client.DomainResource{{
 				PortMin:  1,
 				PortMax:  65535,
 				Protocol: "all",
-			}
-		} else {
-			domainResources = map[string]client.DomainResource{
-				"fudan.edu.cn": {
-					PortMin:  1,
-					PortMax:  65535,
-					Protocol: "all",
-				},
-			}
-		}
+			}}
 
-		if ipResources != nil {
+			if ipResources == nil {
+				ipResources = []client.IPResource{}
+			}
+
 			ipResources = append([]client.IPResource{{
 				IPMin:    net.ParseIP("10.0.0.0"),
 				IPMax:    net.ParseIP("10.255.255.255"),
@@ -127,45 +266,42 @@ func main() {
 				PortMax:  65535,
 				Protocol: "all",
 			}}, ipResources...)
-		} else {
-			ipResources = []client.IPResource{{
-				IPMin:    net.ParseIP("10.0.0.0"),
-				IPMax:    net.ParseIP("10.255.255.255"),
-				PortMin:  1,
-				PortMax:  65535,
-				Protocol: "all",
-			}}
-		}
 
-		ipSetBuilder := netaddr.IPSetBuilder{}
-		if ipSet != nil {
-			ipSetBuilder.AddSet(ipSet)
-		}
-		ipSetBuilder.AddPrefix(netaddr.MustParseIPPrefix("10.0.0.0/8"))
-		ipSet, _ = ipSetBuilder.IPSet()
-	}
-
-	for _, customProxyDomain := range conf.CustomProxyDomain {
-		if domainResources != nil {
-			domainResources[customProxyDomain] = client.DomainResource{
-				PortMin:  1,
-				PortMax:  65535,
-				Protocol: "all",
+			ipSetBuilder := netaddr.IPSetBuilder{}
+			if ipSet != nil {
+				ipSetBuilder.AddSet(ipSet)
 			}
-		} else {
-			domainResources = map[string]client.DomainResource{
-				customProxyDomain: {
+			ipSetBuilder.AddPrefix(netaddr.MustParseIPPrefix("10.0.0.0/8"))
+			ipSet, _ = ipSetBuilder.IPSet()
+		}
+
+		for _, customProxyDomain := range conf.CustomProxyDomain {
+			if domainResources != nil {
+				domainResources[customProxyDomain] = append(domainResources[customProxyDomain], client.DomainResource{
 					PortMin:  1,
 					PortMax:  65535,
 					Protocol: "all",
-				},
+				})
+			} else {
+				domainResources = client.DomainResources{
+					customProxyDomain: {{
+						PortMin:  1,
+						PortMax:  65535,
+						Protocol: "all",
+					}},
+				}
 			}
 		}
 	}
 
 	var vpnStack stack.Stack
-	if conf.TUNMode {
-		vpnTUNStack, err := tun.NewStack(vpnClient, conf.DNSHijack, ipResources)
+	if conf.TCPTunnelMode {
+		vpnStack, err = tcptunnel.NewStack(vpnClient)
+		if err != nil {
+			log.Fatalf("TCP Tunnel stack setup error: %s", err)
+		}
+	} else if conf.TUNMode {
+		vpnTUNStack, err := tun.NewStack(vpnClient, conf.DNSHijack, conf.FakeIP, ipResources)
 		if err != nil {
 			log.Fatalf("Tun stack setup error, make sure you are root user : %s", err)
 		}
@@ -175,9 +311,13 @@ func main() {
 				log.Printf("Add route to %s", prefix.String())
 				_ = vpnTUNStack.AddRoute(prefix.String())
 			}
-		} else if !conf.AddRoute && !conf.DisableFDUConfig {
+		} else if !conf.AddRoute && !conf.DisableFDUConfig && conf.Protocol == "easyconnect" {
 			log.Println("Add route to 10.0.0.0/8")
 			_ = vpnTUNStack.AddRoute("10.0.0.0/8")
+		}
+
+		if conf.FakeIP {
+			_ = vpnTUNStack.AddRoute("198.18.0.0/16")
 		}
 
 		vpnStack = vpnTUNStack
@@ -188,28 +328,41 @@ func main() {
 		}
 	}
 
-	useFDUDNS := !conf.DisableFDUDNS
-	fduDNSServer := conf.FDUDNSServer
-	if useFDUDNS && fduDNSServer == "auto" {
-		fduDNSServer, err = vpnClient.DNSServer()
+	useRemoteDNS := !conf.DisableRemoteDNS
+	remoteDNSServer := conf.RemoteDNSServer
+	policyDNSServers, _ := vpnClient.DNSServers()
+	if useRemoteDNS && remoteDNSServer == "auto" {
+		remoteDNSServer, err = vpnClient.DNSServer()
 		if err != nil {
-			useFDUDNS = false
-			fduDNSServer = "202.120.224.26"
-			log.Println("No DNS server provided by server. Disable FDU DNS")
+			useRemoteDNS = false
+			remoteDNSServer = "202.120.224.26"
+			log.Println("No DNS server provided by server. Disable remote DNS")
 		} else {
-			log.Printf("Use DNS server %s provided by server", fduDNSServer)
+			log.Printf("Use DNS server %s provided by server", remoteDNSServer)
+		}
+	}
+	secondaryDNSServer := conf.SecondaryDNSServer
+	if secondaryDNSServer == "auto" {
+		secondaryDNSServer = "223.5.5.5"
+		if len(policyDNSServers) > 1 {
+			secondaryDNSServer = policyDNSServers[1]
+			log.Printf("Use secondary DNS server %s provided by server", secondaryDNSServer)
 		}
 	}
 
 	vpnResolver := resolve.NewResolver(
 		vpnStack,
-		fduDNSServer,
-		conf.SecondaryDNSServer,
+		remoteDNSServer,
+		secondaryDNSServer,
 		conf.DNSTTL,
 		domainResources,
 		dnsResource,
-		useFDUDNS,
+		useRemoteDNS,
 	)
+	hook_func.RegisterTerminalFunc("CloseResolver", func(ctx context.Context) error {
+		vpnResolver.Close()
+		return nil
+	})
 
 	for _, customDns := range conf.CustomDNSList {
 		ipAddr := net.ParseIP(customDns.IP)
@@ -219,8 +372,9 @@ func main() {
 		vpnResolver.SetPermanentDNS(customDns.HostName, ipAddr)
 		log.Printf("Add custom DNS: %s -> %s\n", customDns.HostName, customDns.IP)
 	}
-	localResolver := service.NewDnsServer(vpnResolver, []string{fduDNSServer, conf.SecondaryDNSServer})
+	localResolver := service.NewDnsServer(vpnResolver, []string{remoteDNSServer, conf.SecondaryDNSServer})
 	vpnStack.SetupResolve(localResolver)
+	vpnStack.SetupIPPool(vpnResolver.IPPool)
 
 	go vpnStack.Run()
 
@@ -230,8 +384,12 @@ func main() {
 		go service.ServeDNS(conf.DNSServerBind, localResolver)
 	}
 	if conf.TUNMode {
-		clientIP, _ := vpnClient.IP()
-		go service.ServeDNS(clientIP.String()+":53", localResolver)
+		clientIP, err := vpnClient.IP()
+		if err != nil || clientIP == nil {
+			log.Printf("Client IP unavailable, skip DNS binding: %v", err)
+		} else {
+			go service.ServeDNS(clientIP.String()+":53", localResolver)
+		}
 	}
 
 	if conf.SocksBind != "" {
@@ -247,26 +405,39 @@ func main() {
 	}
 
 	for _, portForwarding := range conf.PortForwardingList {
-		if portForwarding.NetworkType == "tcp" {
-			go service.ServeTCPForwarding(vpnStack, portForwarding.BindAddress, portForwarding.RemoteAddress)
-		} else if portForwarding.NetworkType == "udp" {
+		switch portForwarding.NetworkType {
+		case "tcp":
+			go service.ServeTCPForwarding(vpnDialer.Dial, portForwarding.BindAddress, portForwarding.RemoteAddress)
+		case "udp":
 			go service.ServeUDPForwarding(vpnStack, portForwarding.BindAddress, portForwarding.RemoteAddress)
-		} else {
+		default:
 			log.Printf("Port forwarding: unknown network type %s. Aborting", portForwarding.NetworkType)
 		}
 	}
 
 	if !conf.DisableKeepAlive {
-		if !useFDUDNS {
-			log.Println("Keep alive is disabled because FDU DNS is disabled")
+		if conf.KeepAliveURL == "" && !useRemoteDNS {
+			log.Println("Keep alive is disabled because remote DNS is disabled, and no KeepAliveURL is provided")
 		} else {
-			go service.KeepAlive(vpnResolver)
+			keepAliveCtx, keepAliveCancel := context.WithCancel(context.Background())
+			hook_func.RegisterTerminalFunc("CloseKeepAlive", func(ctx context.Context) error {
+				keepAliveCancel()
+				return nil
+			})
+			go service.KeepAlive(keepAliveCtx, vpnResolver, vpnDialer, conf.KeepAliveURL)
 		}
 	}
 
-	quit := make(chan os.Signal)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
-	<-quit
+	if runtime.GOOS == "windows" {
+		done := make(chan os.Signal, 1)
+		signal.Notify(done, syscall.SIGINT)
+		winquit.SimulateSigTermOnQuit(done)
+		<-done
+	} else {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+		<-quit
+	}
 	log.Println("Shutdown FDU-Connect ......")
 	if errs := hook_func.ExecTerminalFunc(context.Background()); errs != nil {
 		for _, err := range errs {

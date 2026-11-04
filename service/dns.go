@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/miekg/dns"
+	"net"
+
+	"github.com/akirasalvare/fdu-connect/internal/hook_func"
 	"github.com/akirasalvare/fdu-connect/log"
 	"github.com/akirasalvare/fdu-connect/resolve"
-	"net"
+	"github.com/miekg/dns"
 )
 
 type DNSServer struct {
@@ -92,12 +94,18 @@ func ServeDNS(bindAddr string, dnsServer DNSServer) {
 	server := &dns.Server{Addr: bindAddr, Net: "udp"}
 	log.Printf("Starting DNS server at %s", server.Addr)
 
+	hook_func.RegisterTerminalFunc("CloseDNSListener", func(ctx context.Context) error {
+		log.Println("Closing DNS listener...")
+		if err := server.Shutdown(); err != nil {
+			return fmt.Errorf("close DNS listener failed: %w", err)
+		}
+		return nil
+	})
+
 	err := server.ListenAndServe()
 	if err != nil {
-		log.Printf("Failed to start DNS server: %s", err.Error())
+		log.Println("DNS server listen failed: " + err.Error())
+	} else {
+		log.Println("DNS server closed")
 	}
-
-	defer func(server *dns.Server) {
-		_ = server.Shutdown()
-	}(server)
 }

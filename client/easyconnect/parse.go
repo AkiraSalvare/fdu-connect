@@ -1,16 +1,18 @@
-package client
+package easyconnect
 
 import (
 	"errors"
-	"github.com/beevik/etree"
-	"github.com/akirasalvare/fdu-connect/log"
-	"inet.af/netaddr"
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/akirasalvare/fdu-connect/client"
+	"github.com/akirasalvare/fdu-connect/log"
+	"github.com/beevik/etree"
+	"inet.af/netaddr"
 )
 
-func (c *EasyConnectClient) parseLineListFromConfig(config string) error {
+func (c *Client) parseLineListFromConfig(config string) error {
 	log.DebugPrintf("Config: %s", config)
 
 	log.Println("Parsing line list from config...")
@@ -55,7 +57,7 @@ func (c *EasyConnectClient) parseLineListFromConfig(config string) error {
 	return nil
 }
 
-func (c *EasyConnectClient) parseResources(resources string) error {
+func (c *Client) parseResources(resources string) error {
 	log.DebugPrintf("Resources: %s", resources)
 
 	log.Println("Parsing resources...")
@@ -67,10 +69,17 @@ func (c *EasyConnectClient) parseResources(resources string) error {
 		return err
 	}
 
+	c.tcpTunnelOnly = false
+	if root := doc.SelectElement("Resource"); root != nil {
+		if other := root.SelectElement("Other"); other != nil {
+			c.tcpTunnelOnly = other.SelectAttrValue("allocateVip", "") == "0"
+		}
+	}
+
 	ipSetBuilder := netaddr.IPSetBuilder{}
-	c.ipResources = make([]IPResource, 0)
-	c.domainResources = make(map[string]DomainResource)
-	c.dnsResource = make(map[string]net.IP)
+	c.ipResources = make([]client.IPResource, 0)
+	c.domainResources = make(client.DomainResources)
+	c.dnsResource = make(map[string][]net.IP)
 
 	element := doc.SelectElement("Resource").SelectElement("Rcs")
 	if element == nil {
@@ -183,13 +192,13 @@ func (c *EasyConnectClient) parseResources(resources string) error {
 				}
 
 				if isDomain {
-					c.domainResources[host] = DomainResource{
+					c.domainResources[host] = append(c.domainResources[host], client.DomainResource{
 						PortMin:  portMin,
 						PortMax:  portMax,
 						Protocol: protocol,
-					}
+					})
 				} else {
-					c.ipResources = append(c.ipResources, IPResource{
+					c.ipResources = append(c.ipResources, client.IPResource{
 						IPMin:    ipMin,
 						IPMax:    ipMax,
 						PortMin:  portMin,
@@ -226,7 +235,7 @@ func (c *EasyConnectClient) parseResources(resources string) error {
 			continue
 		}
 
-		c.dnsResource[dnsParts[1]] = ip.IPAddr().IP
+		c.dnsResource[dnsParts[1]] = append(c.dnsResource[dnsParts[1]], ip.IPAddr().IP)
 		log.DebugPrintf("Add DNS rule: %s -> %s", dnsParts[1], dnsParts[2])
 	}
 
@@ -240,10 +249,21 @@ func (c *EasyConnectClient) parseResources(resources string) error {
 		return errors.New("no Dns dnsserver attribute found")
 	}
 
-	c.dnsServer = strings.Split(dnsServerStr.Value, ";")[0]
+	c.dnsServers = c.dnsServers[:0]
+	for _, server := range strings.Split(dnsServerStr.Value, ";") {
+		if server != "" {
+			c.dnsServers = append(c.dnsServers, server)
+		}
+	}
+	if len(c.dnsServers) > 0 {
+		c.dnsServer = c.dnsServers[0]
+	}
 
 	if c.dnsServer == "0.0.0.0" {
 		c.dnsServer = ""
+	}
+
+	if c.dnsServer == "" && !c.tcpTunnelOnly {
 		return errors.New("DNS server invalid")
 	}
 
