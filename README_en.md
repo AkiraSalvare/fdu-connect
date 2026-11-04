@@ -10,8 +10,6 @@
 
 **This program is modified on [ZJU Connect](https://github.com/Mythologyli/zju-connect), thanks to the original author [Mythologyli](https://github.com/Mythologyli) and the contributors of the original project.**
 
-**QQ group: 1037726410**, welcome to join the discussion.
-
 ### Usage
 
 + If you are from FDU:
@@ -133,8 +131,6 @@
 Configuration sources are merged with the precedence “built-in defaults < TOML file < environment variables < command-line flags”. Only explicitly supplied command-line flags override other sources; for example, `-tun-mode=false` disables a value enabled by the file or environment.
 
 Every configuration key can be set with an uppercase environment variable prefixed by `FDU_CONNECT_`. For example, `server_address` maps to `FDU_CONNECT_SERVER_ADDRESS`, and `tun_mode` maps to `FDU_CONNECT_TUN_MODE`. Collection values use the same names and syntax as command-line flags, for example `FDU_CONNECT_TCP_PORT_FORWARDING=127.0.0.1:9898-10.10.98.98:80`, `FDU_CONNECT_CUSTOM_DNS=zb.fudan.edu.cn:10.108.68.200`, and `FDU_CONNECT_CUSTOM_PROXY_DOMAIN=nature.com,science.org`.
-
-The old `disable_fdu_dns` and `fdu_dns_server` names, including their command-line flags and environment variables, remain supported but are deprecated. Use `disable_remote_dns` and `remote_dns_server` instead.
 
 #### EasyConnect Related Arguments
 

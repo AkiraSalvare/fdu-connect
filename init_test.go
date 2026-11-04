@@ -181,7 +181,7 @@ func TestUnknownConfigurationKeyIsRejected(t *testing.T) {
 	}
 }
 
-func TestLegacyRemoteDNSNamesRemainSupported(t *testing.T) {
+func TestRemoteDNSConfigSources(t *testing.T) {
 	tests := []struct {
 		name    string
 		config  string
@@ -191,22 +191,22 @@ func TestLegacyRemoteDNSNamesRemainSupported(t *testing.T) {
 	}{
 		{
 			name:    "TOML",
-			config:  "disable_fdu_dns = true\nfdu_dns_server = \"192.0.2.1\"\n",
+			config:  "disable_remote_dns = true\nremote_dns_server = \"192.0.2.1\"\n",
 			wantDNS: "192.0.2.1",
 		},
 		{
 			name: "environment",
 			environ: []string{
-				"FDU_CONNECT_DISABLE_FDU_DNS=true",
-				"FDU_CONNECT_FDU_DNS_SERVER=192.0.2.2",
+				"FDU_CONNECT_DISABLE_REMOTE_DNS=true",
+				"FDU_CONNECT_REMOTE_DNS_SERVER=192.0.2.2",
 			},
 			wantDNS: "192.0.2.2",
 		},
 		{
 			name: "command line",
 			args: []string{
-				"--disable-fdu-dns",
-				"--fdu-dns-server", "192.0.2.3",
+				"--disable-remote-dns",
+				"--remote-dns-server", "192.0.2.3",
 			},
 			wantDNS: "192.0.2.3",
 		},
@@ -229,48 +229,6 @@ func TestLegacyRemoteDNSNamesRemainSupported(t *testing.T) {
 				t.Fatalf("RemoteDNSServer = %q, want %q", options.Config.RemoteDNSServer, test.wantDNS)
 			}
 		})
-	}
-}
-
-func TestCanonicalRemoteDNSConfigNames(t *testing.T) {
-	configFile := writeConfig(t, `
-disable_remote_dns = true
-remote_dns_server = "192.0.2.4"
-`)
-
-	options, _, err := loadStartupOptions([]string{"--config", configFile}, func() []string { return nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !options.Config.DisableRemoteDNS || options.Config.RemoteDNSServer != "192.0.2.4" {
-		t.Fatalf("canonical remote DNS configuration was not applied: %+v", options.Config)
-	}
-}
-
-func TestRemoteDNSAliasesPreserveSourcePrecedence(t *testing.T) {
-	configFile := writeConfig(t, `
-disable_fdu_dns = true
-fdu_dns_server = "192.0.2.1"
-`)
-
-	options, _, err := loadStartupOptions([]string{
-		"--config", configFile,
-		"--disable-fdu-dns=false",
-		"--remote-dns-server", "192.0.2.3",
-	}, func() []string {
-		return []string{
-			"FDU_CONNECT_DISABLE_REMOTE_DNS=true",
-			"FDU_CONNECT_FDU_DNS_SERVER=192.0.2.2",
-		}
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if options.Config.DisableRemoteDNS {
-		t.Fatal("DisableRemoteDNS = true, want explicit CLI false")
-	}
-	if options.Config.RemoteDNSServer != "192.0.2.3" {
-		t.Fatalf("RemoteDNSServer = %q, want CLI value", options.Config.RemoteDNSServer)
 	}
 }
 

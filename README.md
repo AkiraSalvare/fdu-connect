@@ -133,8 +133,6 @@
 
 配置项均可使用带 `FDU_CONNECT_` 前缀的大写环境变量设置，例如 `server_address` 对应 `FDU_CONNECT_SERVER_ADDRESS`，`tun_mode` 对应 `FDU_CONNECT_TUN_MODE`。集合项使用与命令行参数相同的语法和名称，例如 `FDU_CONNECT_TCP_PORT_FORWARDING=127.0.0.1:9898-10.10.98.98:80`、`FDU_CONNECT_CUSTOM_DNS=zb.fudan.edu.cn:10.108.68.200` 和 `FDU_CONNECT_CUSTOM_PROXY_DOMAIN=nature.com,science.org`。
 
-旧名称 `disable_fdu_dns`、`fdu_dns_server` 及其命令行参数和环境变量仍然兼容，但已弃用；请改用 `disable_remote_dns` 和 `remote_dns_server`。
-
 #### EasyConnect 相关参数
 
 + `cert-file`: p12 证书文件路径，如果服务器要求证书验证，需要配置此参数

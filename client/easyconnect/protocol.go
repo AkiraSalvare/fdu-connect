@@ -149,10 +149,9 @@ func (c *Client) RecvConn() (*tls.UConn, error) {
 // The first byte of the server reply is a HandCmdMsg cmd code, dispatched
 // by upstream sangfor's svpnservice. Known values:
 //
-//	0x00 = SEND_IP  (zju-connect protocol uses 0x02 here as its OK marker;
+//	0x00 = SEND_IP  (this client treats 0x02 here as its OK marker;
 //	                 the relationship between 0x02 and the full sangfor
-//	                 cmd table isn't fully understood, but accepting it
-//	                 has worked reliably for years)
+//	                 cmd table isn't fully understood)
 //	0x05/0x06/0x07/0x09 = RECONNECTLATER_*
 //	0x08 = SHUTDOWN
 //	0x0a = IPVALID

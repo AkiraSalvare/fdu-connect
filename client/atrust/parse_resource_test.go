@@ -43,13 +43,13 @@ func TestParseResourcePreservesMultipleRulesForDomain(t *testing.T) {
 }
 
 func TestParseResourcePreservesAddrPretendForDomain(t *testing.T) {
-	policy := []byte(`{"data":{"appList":{"data":{"appInfo":[{"apps":[{"ID":"tcp-app","NodeGroupID":"tcp-group","AccessModel":"L3VPN","addrPretend":true,"AddressList":[{"Protocol":"tcp","Port":"80","Host":"speedtest.zju.edu.cn"}]}]}]}}}}`)
+	policy := []byte(`{"data":{"appList":{"data":{"appInfo":[{"apps":[{"ID":"tcp-app","NodeGroupID":"tcp-group","AccessModel":"L3VPN","addrPretend":true,"AddressList":[{"Protocol":"tcp","Port":"80","Host":"speedtest.example.com"}]}]}]}}}}`)
 	c := &Client{}
 	if err := c.parseResource(policy); err != nil {
 		t.Fatalf("parseResource() error = %v", err)
 	}
 
-	resource, ok := client.MatchDomainResource(c.domainResources["speedtest.zju.edu.cn"], "tcp", 80)
+	resource, ok := client.MatchDomainResource(c.domainResources["speedtest.example.com"], "tcp", 80)
 	if !ok || !resource.AddrPretend {
 		t.Fatalf("domain resource = (%#v, %t), want AddrPretend", resource, ok)
 	}

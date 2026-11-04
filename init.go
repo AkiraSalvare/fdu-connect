@@ -60,18 +60,6 @@ var collectionSpecs = []collectionSpec{
 	{collectionProxyDomain, "custom-proxy-domain", "CUSTOM_PROXY_DOMAIN", "Domains which force use of the RVPN proxy"},
 }
 
-type configAlias struct {
-	LegacyKey     string
-	CanonicalKey  string
-	LegacyFlag    string
-	CanonicalFlag string
-}
-
-var configAliases = []configAlias{
-	{"disable_fdu_dns", "disable_remote_dns", "disable-fdu-dns", "disable-remote-dns"},
-	{"fdu_dns_server", "remote_dns_server", "fdu-dns-server", "remote-dns-server"},
-}
-
 func fduConnectVersionString() string {
 	if CommitID != "" {
 		return fduConnectVersion + "-" + CommitID
@@ -93,8 +81,6 @@ func newFlagSet(defaults configs.Config) *pflag.FlagSet {
 	flags.Bool("skip-domain-resource", defaults.SkipDomainResource, "Don't use server domain resource to decide whether to use RVPN")
 	flags.Bool("disable-fdu-config", defaults.DisableFDUConfig, "Don't use FDU config (for easyconnect protocol only)")
 	flags.Bool("disable-remote-dns", defaults.DisableRemoteDNS, "Use local DNS instead of remote DNS")
-	flags.Bool("disable-fdu-dns", defaults.DisableRemoteDNS, "Use local DNS instead of remote DNS")
-	_ = flags.MarkDeprecated("disable-fdu-dns", "use --disable-remote-dns instead")
 	flags.Bool("disable-multi-line", defaults.DisableMultiLine, "Disable multi line auto select")
 	flags.Bool("proxy-all", defaults.ProxyAll, "Proxy all traffic (only for debug usage)")
 	flags.String("socks-bind", defaults.SocksBind, "The address SOCKS5 server listens on")
@@ -113,8 +99,6 @@ func newFlagSet(defaults configs.Config) *pflag.FlagSet {
 	flags.Bool("disable-keep-alive", defaults.DisableKeepAlive, "Disable keep alive")
 	flags.String("keep-alive-url", defaults.KeepAliveURL, "Keep alive URL")
 	flags.String("remote-dns-server", defaults.RemoteDNSServer, "Remote DNS server address")
-	flags.String("fdu-dns-server", defaults.RemoteDNSServer, "Remote DNS server address")
-	_ = flags.MarkDeprecated("fdu-dns-server", "use --remote-dns-server instead")
 	flags.String("secondary-dns-server", defaults.SecondaryDNSServer, "Secondary DNS server address")
 	flags.String("dns-server-bind", defaults.DNSServerBind, "The address DNS server listens on")
 	flags.String("local-dns-server", defaults.LocalDNSServer, "DNS server used to resolve the VPN server hostname")
@@ -192,9 +176,6 @@ func loadStartupOptions(args []string, environ func() []string) (startupOptions,
 		if err := k.Load(file.Provider(configFile), toml.Parser()); err != nil {
 			return startupOptions{}, flags, fmt.Errorf("parse config %q: %w", configFile, err)
 		}
-		if err := normalizeConfigAliases(k); err != nil {
-			return startupOptions{}, flags, fmt.Errorf("parse config %q: %w", configFile, err)
-		}
 		if err := rejectUnknownKeys(k, allowedKeys); err != nil {
 			return startupOptions{}, flags, fmt.Errorf("parse config %q: %w", configFile, err)
 		}
@@ -212,9 +193,6 @@ func loadStartupOptions(args []string, environ func() []string) (startupOptions,
 		},
 	})
 	if err := k.Load(envProvider, nil); err != nil {
-		return startupOptions{}, flags, fmt.Errorf("load environment: %w", err)
-	}
-	if err := normalizeConfigAliases(k); err != nil {
 		return startupOptions{}, flags, fmt.Errorf("load environment: %w", err)
 	}
 	if err := rejectUnknownKeys(k, allowedKeys); err != nil {
@@ -310,18 +288,6 @@ func rejectUnknownKeys(k *koanf.Koanf, allowed map[string]struct{}) error {
 	return nil
 }
 
-func normalizeConfigAliases(k *koanf.Koanf) error {
-	for _, alias := range configAliases {
-		if k.Exists(alias.LegacyKey) {
-			if err := k.Set(alias.CanonicalKey, k.Get(alias.LegacyKey)); err != nil {
-				return err
-			}
-		}
-		k.Delete(alias.LegacyKey)
-	}
-	return nil
-}
-
 func isCollectionEnvKey(key string) bool {
 	for _, spec := range collectionSpecs {
 		if string(spec.Key) == key {
@@ -332,11 +298,6 @@ func isCollectionEnvKey(key string) bool {
 }
 
 func configKeyForFlag(name string) (string, bool) {
-	for _, alias := range configAliases {
-		if name == alias.LegacyFlag || name == alias.CanonicalFlag {
-			return alias.CanonicalKey, true
-		}
-	}
 	switch name {
 	case "config", "version", "auth-info", "trust-device", "untrust-device":
 		return "", false

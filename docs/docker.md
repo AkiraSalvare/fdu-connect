@@ -79,7 +79,7 @@ volumes:
 docker compose run --rm -it fdu-connect
 ```
 
-以下以 ZJU 服务端为例：
+以下以需要图形验证码和短信验证码的服务端为例：
 
 **1. 图形验证码**
 
